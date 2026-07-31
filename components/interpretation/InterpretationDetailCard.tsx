@@ -2,6 +2,8 @@ import type { EcgInterpretationItem, InterpretationStatus } from "@/types/interp
 import { EvidenceSources } from "./EvidenceSources";
 import { FindingFactors } from "./FindingFactors";
 import { MustNotMiss } from "./MustNotMiss";
+import { STChangeModule } from "./STChangeModule";
+import type { StInterpretation, StInterpretationInput } from "@/types/st-interpretation";
 
 const statusLabels: Record<InterpretationStatus, string> = {
   accepted: "正しい",
@@ -13,9 +15,13 @@ const statusLabels: Record<InterpretationStatus, string> = {
 export function InterpretationDetailCard({
   item,
   onChange,
+  stInput, stResult, onStChange,
 }: {
   item: EcgInterpretationItem;
   onChange: (next: EcgInterpretationItem) => void;
+  stInput?: StInterpretationInput;
+  stResult?: StInterpretation;
+  onStChange: (input: StInterpretationInput) => void;
 }) {
   return <div className="interpretation-detail">
     <div className="interpretation-values">
@@ -25,6 +31,8 @@ export function InterpretationDetailCard({
         {Object.entries(statusLabels).map(([value,label]) => <option value={value} key={value}>{label}</option>)}
       </select></label>
     </div>
+
+    {stInput&&stResult&&<STChangeModule input={stInput} result={stResult} onChange={onStChange}/>}
 
     <DetailSection title="所見の意味" items={item.meaning} />
     <section><h4>考えられる要因</h4><FindingFactors item={item}/></section>

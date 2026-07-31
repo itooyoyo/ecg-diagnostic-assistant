@@ -1,0 +1,30 @@
+"use client";
+
+import type { StandardEcgLead, StDirection, StInterpretation, StInterpretationInput, StMorphology } from "@/types/st-interpretation";
+
+const directions: Array<[StDirection,string]> = [["isoelectric","変化なし"],["elevation","↑ 上昇"],["depression","↓ 低下"],["indeterminate","判定不能"]];
+const morphologies: Array<[StMorphology,string]> = [["horizontal","水平型"],["upsloping","上行型"],["downsloping","下降型"],["convex","上に凸"],["concave","上に凹"],["coved","coved"],["saddleback","saddleback"],["scooped","scooped"],["indeterminate","判定不能"]];
+
+export function STChangeModule({input,result,onChange}:{input:StInterpretationInput;result:StInterpretation;onChange:(input:StInterpretationInput)=>void}){
+  const updateLead=(lead:StandardEcgLead,patch:Partial<StInterpretationInput["leadMeasurements"][number]>)=>onChange({...input,leadMeasurements:input.leadMeasurements.map((item)=>item.lead===lead?{...item,...patch,clinicianConfirmed:true}:item)});
+  const updateClinical=(patch:Partial<StInterpretationInput["clinical"]>)=>onChange({...input,clinical:{...input.clinical,...patch}});
+  return <div className="st-module">
+    <section><h4>測定条件・臨床背景</h4><div className="st-form-grid">
+      <label>年齢<input type="number" min="0" value={input.clinical.age??""} onChange={e=>updateClinical({age:e.target.value?Number(e.target.value):null})}/></label>
+      <label>性別<select value={input.clinical.sex??""} onChange={e=>updateClinical({sex:e.target.value==="male"?"male":e.target.value==="female"?"female":null})}><option value="">未入力</option><option value="male">男性</option><option value="female">女性</option></select></label>
+      <label>QRS背景<select value={input.qrsContext} onChange={e=>onChange({...input,qrsContext:e.target.value as StInterpretationInput["qrsContext"]})}>{[["narrow","狭いQRS"],["rbbb","RBBB"],["lbbb","LBBB"],["paced","ペーシング"],["lvh","左室肥大"],["preexcitation","早期興奮"],["unknown","不明"]].map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></label>
+      <label>前回比較<select value={input.priorComparison} onChange={e=>onChange({...input,priorEcgAvailable:e.target.value!=="indeterminate",priorComparison:e.target.value as StInterpretationInput["priorComparison"]})}>{[["indeterminate","比較なし/不明"],["unchanged","不変"],["new","新規"],["worsened","増悪"],["improved","改善"],["transient","一過性"]].map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></label>
+    </div><div className="st-check-grid">
+      <Check label="虚血を疑う症状" checked={input.clinical.ischemicSymptoms===true} onChange={v=>updateClinical({ischemicSymptoms:v})}/><Check label="循環動態不安定" checked={input.clinical.hemodynamicInstability} onChange={v=>updateClinical({hemodynamicInstability:v})}/><Check label="低血圧" checked={input.clinical.hypotension} onChange={v=>updateClinical({hypotension:v})}/><Check label="V1〜V3の高いR波" checked={input.clinical.highRWaveV1toV3} onChange={v=>updateClinical({highRWaveV1toV3:v})}/><Check label="動的ST変化" checked={input.dynamicChange===true} onChange={v=>onChange({...input,dynamicChange:v})}/><Check label="V1/V2高位装着疑い" checked={input.preconditions.v1v2HighPlacementConcern} onChange={v=>onChange({...input,preconditions:{...input.preconditions,v1v2HighPlacementConcern:v}})}/>
+    </div></section>
+
+    <section><h4>12誘導 ST計測</h4><p className="muted">基線はTP部分、ST上昇はJ点で計測します。医師修正値で下流判定を再計算します。</p><div className="st-lead-grid">{input.leadMeasurements.filter((m)=>!["V3R","V4R","V5R","V6R","V7","V8","V9"].includes(m.lead)).map((m)=><div className={`st-lead-chip st-${m.direction}`} key={m.lead}><strong>{m.lead}</strong><select aria-label={`${m.lead} ST方向`} value={m.direction} onChange={e=>updateLead(m.lead as StandardEcgLead,{direction:e.target.value as StDirection})}>{directions.map(([v,l])=><option value={v} key={v}>{l}</option>)}</select><label><span>振幅 mm</span><input aria-label={`${m.lead} ST振幅`} type="number" min="0" step="0.1" value={m.amplitudeMm??""} onChange={e=>updateLead(m.lead as StandardEcgLead,{amplitudeMm:e.target.value?Number(e.target.value):null})}/></label><select aria-label={`${m.lead} ST形状`} value={m.morphology} onChange={e=>updateLead(m.lead as StandardEcgLead,{morphology:e.target.value as StMorphology})}>{morphologies.map(([v,l])=><option value={v} key={v}>{l}</option>)}</select><small>{result.leadResults.find(r=>r.lead===m.lead)?.significant===true?"基準該当":result.leadResults.find(r=>r.lead===m.lead)?.significant===null?"判定不能":"基準未満/変化なし"}</small></div>)}</div></section>
+
+    <section><h4>Reciprocal change・追加誘導</h4><div className="st-form-grid"><label>Reciprocal change<select value={input.reciprocalFinding.status} onChange={e=>onChange({...input,reciprocalFinding:{...input.reciprocalFinding,status:e.target.value as "present"|"absent"|"indeterminate"}})}><option value="absent">なし</option><option value="present">あり</option><option value="indeterminate">判定不能</option></select></label></div>{result.suggestedAdditionalLeads.map(s=><a className="st-suggestion" href="#section-1" key={s.type}><strong>{s.emphasizedLead??s.leads.join("〜")}</strong><span>{s.message}</span></a>)}{!result.suggestedAdditionalLeads.length&&<p className="muted">現時点で追加誘導をroutine表示しません。</p>}</section>
+
+    <section className={result.redFlags.length?"st-redflag":"st-result"}><h4>{result.redFlags.length?"Red Flag：急性冠閉塞を否定できません":"ST判定結果"}</h4><p>{classificationLabel(result.overallClassification)}</p>{result.contiguousLeadGroups.length>0&&<ul className="list">{result.contiguousLeadGroups.map(x=><li key={x}>{x}</li>)}</ul>}{result.redFlags.map(x=><p key={x}>根拠：{x}</p>)}{result.warnings.map(x=><p className="muted" key={x}>{x}</p>)}</section>
+  </div>;
+}
+
+function Check({label,checked,onChange}:{label:string;checked:boolean;onChange:(value:boolean)=>void}){return <label className="check"><input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked)}/>{label}</label>}
+function classificationLabel(value:StInterpretation["overallClassification"]){return ({no_significant_change:"有意なST変化なし",st_elevation:"ST上昇",st_depression:"ST低下",mixed:"ST上昇・低下の併存",secondary_repolarization_change:"QRS異常に伴う二次性ST-T変化の可能性",indeterminate:"判定不能（正常として扱いません）"})[value]}

@@ -11,6 +11,8 @@ import { buildInterpretation, groupFindingFactors, resolveInterpretationValue } 
 import { buildTodaysPlan, collectRedFlagCategories } from "../logic/interpretation/build-todays-plan.js";
 import { collectAdditionalChecks } from "../logic/interpretation/collect-additional-checks.js";
 import { sortByUrgency, urgencyLabel } from "../logic/interpretation/determine-urgency.js";
+import { createDefaultStInput } from "../data/st-interpretation/defaults.js";
+import { interpretStChanges } from "../logic/st-interpretation/interpret-st.js";
 
 const good = {allLeads:true,leadLabels:true,waveformsComplete:true,speedVisible:true,gainVisible:true,gridVisible:true,inFocus:true,lowBlur:true,noGlare:true,noShadow:true,lowTilt:true,lowPerspective:true,multipleBeats:true,privacyChecked:true};
 test("all quality checks pass",()=>assert.equal(evaluateQuality(good).grade,"A"));
@@ -191,3 +193,25 @@ test("interpretation UI includes responsive accordion and source sections",()=>{
   assert.match(detail,/出典/);
   assert.match(readFileSync(new URL("../app/globals.css",import.meta.url),"utf8"),/\.interpretation-item summary/);
 });
+
+const withSt=(changes,context={})=>{const input=createDefaultStInput();for(const [lead,direction,amplitudeMm,morphology="horizontal"] of changes){const m=input.leadMeasurements.find(x=>x.lead===lead);Object.assign(m,{direction,amplitudeMm,morphology,measurementPoint:"j_point",baselineReference:"tp_segment"});}Object.assign(input.clinical,context);return input};
+test("ST: no finding is not routinely escalated",()=>assert.equal(interpretStChanges(createDefaultStInput()).overallClassification,"no_significant_change"));
+test("ST: single mild elevation is not a contiguous group",()=>assert.equal(interpretStChanges(withSt([["II","elevation",1]])).contiguousLeadGroups.length,0));
+test("ST: contiguous inferior elevation with symptoms is a red flag",()=>assert.ok(interpretStChanges(withSt([["II","elevation",1],["III","elevation",1]],{ischemicSymptoms:true})).redFlags.length));
+test("ST: reciprocal change increases red flag evidence",()=>{const x=withSt([["II","elevation",1],["III","elevation",1]]);x.reciprocalFinding.status="present";assert.ok(interpretStChanges(x).redFlags.some(v=>v.includes("reciprocal")))});
+test("ST: absent reciprocal change does not exclude elevation",()=>assert.equal(interpretStChanges(withSt([["II","elevation",1],["III","elevation",1]])).overallClassification,"st_elevation"));
+test("ST: inferior elevation suggests V4R",()=>assert.equal(interpretStChanges(withSt([["II","elevation",1],["III","elevation",1]])).suggestedAdditionalLeads[0].emphasizedLead,"V4R"));
+test("ST: inferior elevation plus hypotension is emergency",()=>assert.equal(interpretStChanges(withSt([["II","elevation",1],["III","elevation",1]],{hypotension:true})).urgency,"emergency"));
+test("ST: V1-V3 horizontal depression suggests V7-V9",()=>assert.deepEqual(interpretStChanges(withSt([["V1","depression",1],["V2","depression",1],["V3","depression",1]])).suggestedAdditionalLeads[0].leads,["V7","V8","V9"]));
+test("ST: high R in V1-V3 can suggest posterior leads",()=>assert.equal(interpretStChanges(withSt([],{highRWaveV1toV3:true})).suggestedAdditionalLeads[0].type,"posterior"));
+test("ST: broad depression plus aVR elevation is high risk, not left-main diagnosis",()=>{const x=withSt([["I","depression",1],["II","depression",1],["III","depression",1],["aVL","depression",1],["aVF","depression",1],["V5","depression",1],["aVR","elevation",1]],{ischemicSymptoms:true});const r=interpretStChanges(x);assert.ok(r.redFlags.some(v=>v.includes("aVR")));assert.ok(r.limitations.every(v=>!v.includes("左主幹部確定")))});
+test("ST: LBBB routes to secondary repolarization classification",()=>{const x=withSt([["II","elevation",1],["III","elevation",1]]);x.qrsContext="lbbb";assert.equal(interpretStChanges(x).overallClassification,"secondary_repolarization_change")});
+test("ST: pacing routes to secondary repolarization classification",()=>{const x=withSt([["II","elevation",1],["III","elevation",1]]);x.qrsContext="paced";assert.equal(interpretStChanges(x).overallClassification,"secondary_repolarization_change")});
+test("ST: V1/V2 placement concern makes result indeterminate",()=>{const x=createDefaultStInput();x.preconditions.v1v2HighPlacementConcern=true;x.preconditions.placementConcern=true;assert.equal(interpretStChanges(x).overallClassification,"indeterminate")});
+test("ST: dynamic change raises emergency urgency",()=>{const x=createDefaultStInput();x.dynamicChange=true;assert.equal(interpretStChanges(x).urgency,"emergency")});
+test("ST: physician amplitude correction recalculates threshold",()=>{const low=withSt([["II","elevation",0.5],["III","elevation",0.5]]);assert.equal(interpretStChanges(low).contiguousLeadGroups.length,0);for(const m of low.leadMeasurements.filter(x=>["II","III"].includes(x.lead)))m.amplitudeMm=1;assert.ok(interpretStChanges(low).contiguousLeadGroups.length)});
+test("ST: uncertain J point is indeterminate",()=>{const x=withSt([["II","elevation",1]]);x.leadMeasurements.find(m=>m.lead==="II").measurementPoint="unknown";assert.equal(interpretStChanges(x).overallClassification,"indeterminate")});
+test("ST: missing demographics prevents V2-V3 threshold application",()=>assert.equal(interpretStChanges(withSt([["V2","elevation",3],["V3","elevation",3]])).overallClassification,"indeterminate"));
+test("ST: poor image quality is never normal",()=>{const x=createDefaultStInput();x.preconditions.imageQualityAdequate=false;assert.equal(interpretStChanges(x).overallClassification,"indeterminate")});
+test("ST: module includes physician lead controls and mobile stacking",()=>{const ui=readFileSync(new URL("../components/interpretation/STChangeModule.tsx",import.meta.url),"utf8");const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");assert.match(ui,/12誘導 ST計測/);assert.match(ui,/Reciprocal change/);assert.match(css,/@media\(max-width:720px\).*st-lead-grid/s)});
+test("ST: plan actions remain deduplicated",()=>{const r=interpretStChanges(withSt([["II","elevation",1],["III","elevation",1]],{ischemicSymptoms:true}));assert.equal(r.nextActions.length,new Set(r.nextActions).size)});
