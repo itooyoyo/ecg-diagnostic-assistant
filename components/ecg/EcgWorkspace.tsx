@@ -16,6 +16,9 @@ import type { EcgInterpretationItem } from "@/types/interpretation";
 import type { StInterpretationInput } from "@/types/st-interpretation";
 import { createDefaultStInput } from "@/data/st-interpretation/defaults.js";
 import { interpretStChanges } from "@/logic/st-interpretation/interpret-st.js";
+import type { TWaveInterpretationInput } from "@/types/t-wave-interpretation";
+import { createDefaultTWaveInput } from "@/data/t-wave-interpretation/defaults.js";
+import { interpretTWave } from "@/logic/t-wave-interpretation/interpret-t-wave.js";
 
 const qualityItems = [
   ["allLeads","12誘導がすべて写っている"],["leadLabels","誘導名が読める"],["waveformsComplete","波形が途中で切れていない"],
@@ -41,7 +44,9 @@ export function EcgWorkspace() {
   const [systematicItems,setSystematicItems]=useState<EcgInterpretationItem[]>(()=>interpretationItems);
   const [stInput,setStInput]=useState<StInterpretationInput>(()=>createDefaultStInput());
   const stResult=useMemo(()=>interpretStChanges(stInput),[stInput]);
-  const interpretedItems=useMemo(()=>systematicItems.map((item)=>item.id!=="st-change"?item:{...item,aiValue:stResult.overallClassification,clinicianValue:item.status==="accepted"?null:stResult.overallClassification,abnormal:stResult.overallClassification==="no_significant_change"?false:stResult.overallClassification==="indeterminate"?null:true,urgency:stResult.urgency,meaning:stResult.contiguousLeadGroups.length?stResult.contiguousLeadGroups:["誘導別ST計測を臨床背景と併せて評価します。"],possibleFactors:stResult.possibleFactors,mustNotMiss:stResult.mustNotMiss,additionalChecks:stResult.additionalChecks,nextActions:stResult.nextActions,limitations:stResult.limitations,sources:stResult.sources}),[systematicItems,stResult]);
+  const [tWaveInput,setTWaveInput]=useState<TWaveInterpretationInput>(()=>createDefaultTWaveInput());
+  const tWaveResult=useMemo(()=>interpretTWave(tWaveInput,{stResult}),[tWaveInput,stResult]);
+  const interpretedItems=useMemo(()=>systematicItems.map((item)=>item.id==="st-change"?{...item,aiValue:stResult.overallClassification,clinicianValue:item.status==="accepted"?null:stResult.overallClassification,abnormal:stResult.overallClassification==="no_significant_change"?false:stResult.overallClassification==="indeterminate"?null:true,urgency:stResult.urgency,meaning:stResult.contiguousLeadGroups.length?stResult.contiguousLeadGroups:["誘導別ST計測を臨床背景と併せて評価します。"],possibleFactors:stResult.possibleFactors,mustNotMiss:stResult.mustNotMiss,additionalChecks:stResult.additionalChecks,nextActions:stResult.nextActions,limitations:stResult.limitations,sources:stResult.sources}:item.id==="t-wave"?{...item,aiValue:tWaveResult.overallClassification,clinicianValue:item.status==="accepted"?null:tWaveResult.overallClassification,abnormal:tWaveResult.overallClassification==="normal"?false:tWaveResult.overallClassification==="indeterminate"?null:true,urgency:tWaveResult.urgency,meaning:[...tWaveResult.affectedLeadGroups,...tWaveResult.warnings],possibleFactors:tWaveResult.possibleFactors,mustNotMiss:tWaveResult.mustNotMiss,additionalChecks:tWaveResult.additionalChecks,nextActions:tWaveResult.nextActions,limitations:tWaveResult.limitations,sources:tWaveResult.sources}:item),[systematicItems,stResult,tWaveResult]);
   const qualityResult=useMemo(()=>evaluateQuality(quality),[quality]);
   const builtSystematicItems=useMemo(()=>buildInterpretation(interpretedItems),[interpretedItems]);
   const interpretationPlan=useMemo(()=>buildTodaysPlan(builtSystematicItems),[builtSystematicItems]);
@@ -104,7 +109,7 @@ export function EcgWorkspace() {
       <section className="card systematic-shell" id="section-6">
         <div className="cardhead"><div><div className="eyebrow">Step 4</div><h3>系統的読影</h3><p className="muted systematic-intro">18項目を順に確認します。正常所見はコンパクト表示、異常・判定不能は詳細を展開します。</p></div><span className="badge">共通基盤</span></div>
         <InterpretationSummary items={builtSystematicItems}/>
-        <InterpretationNavigator items={builtSystematicItems} stInput={stInput} stResult={stResult} onStChange={(next)=>{setStInput(next);setSystematicItems(current=>current.map(item=>item.id==="st-change"?{...item,status:"edited"}:item))}} onChange={(next)=>setSystematicItems((current)=>current.map((item)=>item.id===next.id?next:item))}/>
+        <InterpretationNavigator items={builtSystematicItems} stInput={stInput} stResult={stResult} onStChange={(next)=>{setStInput(next);setSystematicItems(current=>current.map(item=>item.id==="st-change"?{...item,status:"edited"}:item))}} tWaveInput={tWaveInput} tWaveResult={tWaveResult} onTWaveChange={(next)=>{setTWaveInput(next);setSystematicItems(current=>current.map(item=>item.id==="t-wave"?{...item,status:"edited"}:item))}} onChange={(next)=>setSystematicItems((current)=>current.map((item)=>item.id===next.id?next:item))}/>
       </section>
       <section className="card" id="section-7"><div className="cardhead"><div><div className="eyebrow">Differential</div><h3>診断候補・原因別対応</h3></div><span className="badge">ダミー表示</span></div><p className="muted">医師確定所見から将来のルールエンジンが生成します。Ver.0.1では診断確定や治療用量を提示しません。</p></section>
     </main>

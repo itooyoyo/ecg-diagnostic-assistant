@@ -1,0 +1,1 @@
+import type {TWaveIntegratedContext,TWaveInterpretation,TWaveInterpretationInput} from "../../types/t-wave-interpretation"; export function interpretTWave(input:TWaveInterpretationInput,integrated?:Partial<TWaveIntegratedContext>):TWaveInterpretation;

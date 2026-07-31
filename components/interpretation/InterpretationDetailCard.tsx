@@ -4,6 +4,8 @@ import { FindingFactors } from "./FindingFactors";
 import { MustNotMiss } from "./MustNotMiss";
 import { STChangeModule } from "./STChangeModule";
 import type { StInterpretation, StInterpretationInput } from "@/types/st-interpretation";
+import type { TWaveInterpretation, TWaveInterpretationInput } from "@/types/t-wave-interpretation";
+import { TWaveModule } from "./TWaveModule";
 
 const statusLabels: Record<InterpretationStatus, string> = {
   accepted: "正しい",
@@ -15,13 +17,16 @@ const statusLabels: Record<InterpretationStatus, string> = {
 export function InterpretationDetailCard({
   item,
   onChange,
-  stInput, stResult, onStChange,
+  stInput, stResult, onStChange, tWaveInput, tWaveResult, onTWaveChange,
 }: {
   item: EcgInterpretationItem;
   onChange: (next: EcgInterpretationItem) => void;
   stInput?: StInterpretationInput;
   stResult?: StInterpretation;
   onStChange: (input: StInterpretationInput) => void;
+  tWaveInput?: TWaveInterpretationInput;
+  tWaveResult?: TWaveInterpretation;
+  onTWaveChange: (input: TWaveInterpretationInput) => void;
 }) {
   return <div className="interpretation-detail">
     <div className="interpretation-values">
@@ -33,6 +38,7 @@ export function InterpretationDetailCard({
     </div>
 
     {stInput&&stResult&&<STChangeModule input={stInput} result={stResult} onChange={onStChange}/>}
+    {tWaveInput&&tWaveResult&&<TWaveModule input={tWaveInput} result={tWaveResult} onChange={onTWaveChange}/>}
 
     <DetailSection title="所見の意味" items={item.meaning} />
     <section><h4>考えられる要因</h4><FindingFactors item={item}/></section>
