@@ -6,7 +6,13 @@ import { evaluateQuality } from "@/logic/quality/quality.js";
 import { NavigatorRobot, STEP_NAVIGATOR_COMMENTS, type NavigatorState } from "@/components/character/NavigatorRobot";
 import { LeadPlacementGuide } from "@/components/ecg/LeadPlacementGuide";
 import { TachyarrhythmiaModule } from "@/components/ecg/TachyarrhythmiaModule";
+import { InterpretationNavigator } from "@/components/interpretation/InterpretationNavigator";
+import { InterpretationSummary } from "@/components/interpretation/InterpretationSummary";
+import { interpretationItems } from "@/data/interpretation/items";
+import { buildInterpretation } from "@/logic/interpretation/build-interpretation.js";
+import { buildTodaysPlan, collectRedFlagCategories } from "@/logic/interpretation/build-todays-plan.js";
 import type { Regularity } from "@/logic/tachyarrhythmia/classify.js";
+import type { EcgInterpretationItem } from "@/types/interpretation";
 
 const qualityItems = [
   ["allLeads","12誘導がすべて写っている"],["leadLabels","誘導名が読める"],["waveformsComplete","波形が途中で切れていない"],
@@ -15,7 +21,6 @@ const qualityItems = [
   ["noShadow","影で波形が隠れていない"],["lowTilt","画像の傾きが強くない"],["lowPerspective","遠近歪みが強くない"],
   ["multipleBeats","複数拍が確認できる"],["privacyChecked","患者氏名やIDの映り込みを確認した"],
 ] as const;
-const systematic = ["記録品質","電極装着","心拍数","リズム","P波","PR間隔","QRS幅","QRS形態","電気軸","R波進行","Q波","ST変化","T波","U波","QT・QTc","前回心電図との比較"];
 const findings = [
   {key:"heartRate",label:"心拍数",ai:"72 bpm"},{key:"rhythm",label:"リズム",ai:"洞調律"},{key:"regularity",label:"規則性",ai:"整"},
   {key:"pr",label:"PR間隔",ai:"164 ms"},{key:"qrs",label:"QRS幅",ai:"92 ms"},{key:"qtc",label:"QTc",ai:"425 ms"},
@@ -30,7 +35,11 @@ export function EcgWorkspace() {
   const [preview,setPreview]=useState("");
   const [fileError,setFileError]=useState("");
   const [review,setReview]=useState<Record<string,{status:string,value:string}>>(()=>Object.fromEntries(findings.map(f=>[f.key,{status:"accepted",value:f.ai}])));
+  const [systematicItems,setSystematicItems]=useState<EcgInterpretationItem[]>(()=>interpretationItems);
   const qualityResult=useMemo(()=>evaluateQuality(quality),[quality]);
+  const builtSystematicItems=useMemo(()=>buildInterpretation(systematicItems),[systematicItems]);
+  const interpretationPlan=useMemo(()=>buildTodaysPlan(builtSystematicItems),[builtSystematicItems]);
+  const interpretationRedFlags=useMemo(()=>collectRedFlagCategories(builtSystematicItems),[builtSystematicItems]);
   const hasClinicianEdits=Object.values(review).some(item=>item.status!=="accepted");
   const navigatorState:NavigatorState=hasPlacementWarning||hasTachyRedFlag?"warning":file?"analyzing":hasClinicianEdits?"complete":"default";
   const confirmedValue=(key:string,aiValue:string)=>review[key]?.status==="accepted"?aiValue:review[key]?.status==="edited"?review[key].value:null;
@@ -86,13 +95,17 @@ export function EcgWorkspace() {
         <div className="result">診断候補・対応は医師確認後の確定所見を使用します。削除・判定不能は正常として扱いません。</div>
       </section>
       <TachyarrhythmiaModule heartRate={confirmedHeartRate} qrsMs={confirmedQrs} regularity={confirmedRegularity} onRedFlagChange={setHasTachyRedFlag}/>
-      <section className="card" id="section-6"><div className="cardhead"><div><div className="eyebrow">Step 4</div><h3>系統的読影</h3></div><span className="badge">UI骨格</span></div><div className="systematic">{systematic.map(x=><div key={x}>{x}</div>)}</div></section>
+      <section className="card systematic-shell" id="section-6">
+        <div className="cardhead"><div><div className="eyebrow">Step 4</div><h3>系統的読影</h3><p className="muted systematic-intro">18項目を順に確認します。正常所見はコンパクト表示、異常・判定不能は詳細を展開します。</p></div><span className="badge">共通基盤</span></div>
+        <InterpretationSummary items={builtSystematicItems}/>
+        <InterpretationNavigator items={builtSystematicItems} onChange={(next)=>setSystematicItems((current)=>current.map((item)=>item.id===next.id?next:item))}/>
+      </section>
       <section className="card" id="section-7"><div className="cardhead"><div><div className="eyebrow">Differential</div><h3>診断候補・原因別対応</h3></div><span className="badge">ダミー表示</span></div><p className="muted">医師確定所見から将来のルールエンジンが生成します。Ver.0.1では診断確定や治療用量を提示しません。</p></section>
     </main>
     <aside className="right">
       <NavigatorCard className="navigator-card--desktop" state={navigatorState} comment={navigatorComment}/>
-      <section className="card alert" id="section-5"><div className="eyebrow">Step 3</div><h3>Red Flag</h3><p className="muted">サンプル表示枠</p><h4>確認カテゴリ</h4><ul className="list"><li>急性冠動脈閉塞を疑う所見</li><li>持続性心室頻拍／心室細動</li><li>高度房室ブロック</li><li>wide QRS tachycardia</li><li>QT延長とTdPリスク</li><li>Brugadaパターン</li><li>高K血症疑い</li></ul><div className="result stop">理由・不足情報・直ちに確認する項目をここに表示します。</div></section>
-      <section className="card" id="section-8"><div className="eyebrow">Today&apos;s Plan</div><h3>今日確認すること</h3><ul className="list">{["再心電図／前回との比較","血圧・意識・SpO₂","K・Ca・Mg","トロポニン","心エコー","右側／後壁誘導","循環器評価"].map(x=><li key={x}>{x}</li>)}</ul></section>
+      <section className="card alert" id="section-5"><div className="eyebrow">Step 3</div><h3>Red Flag</h3><p className="muted">系統的読影から生成された仮カテゴリ</p><h4>確認カテゴリ</h4>{interpretationRedFlags.length?<ul className="list">{interpretationRedFlags.map((flag)=><li key={flag.id}><strong>{flag.label}</strong><br/><span>{flag.note}</span></li>)}</ul>:<p className="muted">現在の入力から生成された仮カテゴリはありません。</p>}<div className="result stop">疾患名や閾値による確定判定は未実装です。理由・不足情報・直ちに確認する項目のみを表示します。</div></section>
+      <section className="card" id="section-8"><div className="eyebrow">Today&apos;s Plan</div><h3>今日確認すること</h3><PlanGroup title="Red Flag" items={interpretationPlan.redFlags}/><PlanGroup title="当日評価" items={interpretationPlan.sameDay}/><PlanGroup title="判定不能の再評価" items={interpretationPlan.reevaluate}/><PlanGroup title="通常評価" items={interpretationPlan.routine}/></section>
     </aside>
   </div>;
 }
@@ -110,3 +123,8 @@ function NavigatorCard({state,comment,className}:{state:NavigatorState;comment:s
 }
 
 function numberFromFinding(value:string|null){if(value==null)return null;const n=Number.parseFloat(value);return Number.isFinite(n)?n:null}
+
+function PlanGroup({title,items}:{title:string;items:string[]}) {
+  if(!items.length)return null;
+  return <div className="plan-group"><h4>{title}</h4><ul className="list">{items.map((item)=><li key={item}>{item}</li>)}</ul></div>;
+}

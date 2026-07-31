@@ -1,3 +1,6 @@
+import Image from "next/image";
+import { useState } from "react";
+
 export type NavigatorState = "default" | "analyzing" | "warning" | "complete";
 
 export const ROBOT_IMAGE_PATHS: Record<NavigatorState, string> = {
@@ -35,6 +38,7 @@ export function NavigatorRobot({
   className = "",
 }: NavigatorRobotProps) {
   const label = `医療AIナビゲーター：${stateLabels[state]}`;
+  const [imageAvailable, setImageAvailable] = useState(true);
 
   return (
     <div
@@ -44,26 +48,39 @@ export function NavigatorRobot({
       data-navigator-state={state}
       data-image-path={ROBOT_IMAGE_PATHS[state]}
     >
-      <div className="navigator-robot__antenna" aria-hidden="true" />
-      <div className="navigator-robot__head" aria-hidden="true">
-        <span className="navigator-robot__visor">
-          <i className="navigator-robot__eye" />
-          <i className="navigator-robot__eye" />
-        </span>
-      </div>
-      {variant === "full" && (
-        <>
-          <div className="navigator-robot__neck" aria-hidden="true" />
-          <div className="navigator-robot__body" aria-hidden="true">
-            <span className="navigator-robot__display">
-              <i />
+      {imageAvailable ? (
+        <Image
+          className="navigator-robot__image"
+          src={ROBOT_IMAGE_PATHS[state]}
+          alt=""
+          width={1254}
+          height={1254}
+          sizes={variant === "icon" ? "42px" : "112px"}
+          loading="eager"
+          onError={() => setImageAvailable(false)}
+        />
+      ) : (
+        <span className="navigator-robot__fallback" aria-hidden="true">
+          <span className="navigator-robot__antenna" />
+          <span className="navigator-robot__head">
+            <span className="navigator-robot__visor">
+              <i className="navigator-robot__eye" />
+              <i className="navigator-robot__eye" />
             </span>
-            <span className="navigator-robot__status-dot" />
-          </div>
-          <div className="navigator-robot__arm navigator-robot__arm--left" aria-hidden="true" />
-          <div className="navigator-robot__arm navigator-robot__arm--right" aria-hidden="true" />
-          <div className="navigator-robot__base" aria-hidden="true" />
-        </>
+          </span>
+          {variant === "full" && (
+            <>
+              <span className="navigator-robot__neck" />
+              <span className="navigator-robot__body">
+                <span className="navigator-robot__display"><i /></span>
+                <span className="navigator-robot__status-dot" />
+              </span>
+              <span className="navigator-robot__arm navigator-robot__arm--left" />
+              <span className="navigator-robot__arm navigator-robot__arm--right" />
+              <span className="navigator-robot__base" />
+            </>
+          )}
+        </span>
       )}
       <span className="sr-only">{stateLabels[state]}</span>
     </div>

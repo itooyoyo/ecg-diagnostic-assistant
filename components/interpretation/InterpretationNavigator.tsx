@@ -1,0 +1,26 @@
+import type { EcgInterpretationItem } from "@/types/interpretation";
+import { urgencyLabel } from "@/logic/interpretation/determine-urgency.js";
+import { InterpretationDetailCard } from "./InterpretationDetailCard";
+
+export function InterpretationNavigator({
+  items,
+  onChange,
+}: {
+  items: EcgInterpretationItem[];
+  onChange: (item: EcgInterpretationItem) => void;
+}) {
+  return <div className="interpretation-navigator">
+    {items.map((item, index) => {
+      const detailed = item.abnormal !== false || item.status !== "accepted";
+      return <details className={`interpretation-item urgency-${item.urgency} ${detailed?"is-detailed":"is-compact"}`} data-interpretation-id={item.id} key={item.id} open={detailed}>
+        <summary>
+          <span className="interpretation-number">{String(index + 1).padStart(2,"0")}</span>
+          <strong>{item.title}</strong>
+          <span className="interpretation-state">{item.status === "indeterminate" ? "判定不能" : item.abnormal ? "異常" : "正常"}</span>
+          <span className="interpretation-urgency">{urgencyLabel(item.urgency)}</span>
+        </summary>
+        <InterpretationDetailCard item={item} onChange={onChange}/>
+      </details>;
+    })}
+  </div>;
+}

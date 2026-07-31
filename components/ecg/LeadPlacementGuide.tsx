@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { placementWarnings } from "@/logic/lead-placement/placement.js";
 import { suggestAdditionalLeads, type AdditionalLeadFindings } from "@/logic/lead-placement/additional-leads.js";
 
@@ -20,8 +20,8 @@ export function LeadPlacementGuide({onWarningChange}:{onWarningChange?:(warning:
   const [placement,setPlacement]=useState<boolean[]>(Array(placementItems.length).fill(false));
   const [concerns,setConcerns]=useState({raLaReversal:false,v1v2High:false});
   const [signals,setSignals]=useState<AdditionalLeadFindings>({inferiorStElevation:false,hypotension:false,stDepressionV1toV3:false,suspectedRVOcclusion:false,suspectedPosteriorOcclusion:false});
-  const warnings=useMemo(()=>placementWarnings(concerns),[concerns]);
-  const suggestions=useMemo(()=>suggestAdditionalLeads(signals),[signals]);
+  const warnings=placementWarnings(concerns);
+  const suggestions=suggestAdditionalLeads(signals);
 
   function updateConcern(key:keyof typeof concerns,checked:boolean) {
     const next={...concerns,[key]:checked};
@@ -58,16 +58,20 @@ export function LeadPlacementGuide({onWarningChange}:{onWarningChange?:(warning:
       </div>
     </div>}
 
-    {tab==="right"&&<div role="tabpanel" className="guide-panel">
-      <GuideImage alt="右側胸部誘導V3RからV6Rの装着位置図" pendingText="画像準備中：右側鏡像配置を文章で確認してください"/>
-      <div className="guide-copy"><h4>右側胸部誘導を追加する状況</h4>
-        <ul className="guide-notes">{["II・III・aVFのST上昇など下壁梗塞を疑う","右室梗塞の合併を評価したい","下壁梗塞に低血圧を伴う","頸静脈怒張がある","肺うっ血が乏しいにもかかわらず低血圧がある","標準12誘導では評価困難だが右冠動脈閉塞を疑う","臨床的に右室虚血を疑う"].map(x=><li key={x}>{x}</li>)}</ul>
+    {tab==="right"&&<div role="tabpanel" className="guide-panel right-sided-panel">
+      <div>
+        <h4 className="guide-visual-heading">右側胸部誘導（V3R〜V6R）</h4>
+        <GuideImage src="/images/ecg/lead-placement-right-sided.png" alt="右側胸部誘導V3R、V4R、V5R、V6Rの装着位置を示すユーザー提供図" width={858} height={836} ready lightbox pendingText="画像準備中：右側鏡像配置を文章で確認してください"/>
+      </div>
+      <div className="guide-copy"><h4>主な適応</h4>
+        <ul className="guide-notes">{["下壁ST上昇（II、III、aVF）","右室梗塞を疑う","下壁梗塞＋低血圧","頸静脈怒張","肺うっ血が乏しい低血圧","右冠動脈閉塞を疑う"].map(x=><li key={x}>{x}</li>)}</ul>
         <div className="result">下壁梗塞を疑う場合は、右室梗塞評価のため右側胸部誘導、特にV4Rを追加します。</div>
-        <div className="guide-leads"><div className="lead">V3R：V3の右胸部鏡像位置</div><div className="lead emphasized-lead"><strong>V4R</strong>：第5肋間・右鎖骨中線</div><div className="lead">V5R：V4Rと同じ高さ・右前腋窩線</div><div className="lead">V6R：V4Rと同じ高さ・右中腋窩線</div></div>
+        <div className="guide-leads"><div className="lead"><strong>V3R</strong><br/>V3の右胸部鏡像位置</div><div className="lead emphasized-lead"><span className="most-important">最重要</span><strong>V4R</strong><br/>第5肋間・右鎖骨中線<br/><small>右室梗塞評価で最も重要な誘導</small></div><div className="lead"><strong>V5R</strong><br/>V4Rと同じ高さ<br/>右前腋窩線</div><div className="lead"><strong>V6R</strong><br/>V4Rと同じ高さ<br/>右中腋窩線</div></div>
         <p className="guide-caution">R表記を明確にし、通常のV3～V6と混同しないでください。取得時刻は将来記録できる構造へ拡張します。</p>
         <SignalChecks signals={signals} update={updateSignal} keys={[["inferiorStElevation","下壁誘導のST上昇"],["hypotension","低血圧"],["suspectedRVOcclusion","右冠動脈閉塞疑い"]]}/>
         <Suggestions suggestions={suggestions.filter(s=>s.type==="right-sided")}/>
       </div>
+      <aside className="clinical-pearl"><div className="eyebrow">Clinical Pearl</div><p>II、III、aVFでST上昇を認めた場合は、右室梗塞合併の評価としてV4Rを含む右側胸部誘導の追加を推奨します。</p></aside>
     </div>}
 
     {tab==="posterior"&&<div role="tabpanel" className="guide-panel">
@@ -83,10 +87,27 @@ export function LeadPlacementGuide({onWarningChange}:{onWarningChange?:(warning:
   </section>;
 }
 
-function GuideImage({src,alt,ready=false,pendingText="画像準備中"}:{src?:string;alt:string;ready?:boolean;pendingText?:string}) {
-  return <div className={`guide-visual ${ready?"guide-visual--ready":"guide-visual--pending"}`}>
-    {ready&&src?<Image src={src} alt={alt} width={459} height={296} sizes="(max-width: 720px) 100vw, 42vw"/>:<><span>画像準備中</span><p>{pendingText}</p></>}
-  </div>;
+function GuideImage({src,alt,ready=false,pendingText="画像準備中",width=459,height=296,lightbox=false}:{src?:string;alt:string;ready?:boolean;pendingText?:string;width?:number;height?:number;lightbox?:boolean}) {
+  const [available,setAvailable]=useState(ready);
+  const [expanded,setExpanded]=useState(false);
+  useEffect(()=>{
+    if(!expanded)return;
+    const close=(event:KeyboardEvent)=>{if(event.key==="Escape")setExpanded(false)};
+    document.addEventListener("keydown",close);
+    return()=>document.removeEventListener("keydown",close);
+  },[expanded]);
+  const image=src?<Image src={src} alt={alt} width={width} height={height} sizes="(max-width: 720px) 100vw, 42vw" loading={lightbox?"eager":"lazy"} onError={()=>setAvailable(false)}/>:null;
+  return <>
+    <div className={`guide-visual ${available?"guide-visual--ready":"guide-visual--pending"}`}>
+      {available&&image?(lightbox?<button type="button" className="lightbox-trigger" onClick={()=>setExpanded(true)} aria-label="右側胸部誘導の図を拡大表示">{image}<span>拡大表示</span></button>:image):<><span>画像準備中</span><p>{pendingText}</p></>}
+    </div>
+    {expanded&&available&&src&&<div className="image-lightbox" role="dialog" aria-modal="true" aria-label="右側胸部誘導の拡大図" onClick={()=>setExpanded(false)}>
+      <div className="image-lightbox__content" onClick={event=>event.stopPropagation()}>
+        <button type="button" className="image-lightbox__close" onClick={()=>setExpanded(false)} autoFocus aria-label="拡大表示を閉じる">×</button>
+        <Image src={src} alt={alt} width={width} height={height} sizes="95vw"/>
+      </div>
+    </div>}
+  </>;
 }
 
 function SignalChecks({signals,update,keys}:{signals:AdditionalLeadFindings;update:(key:keyof AdditionalLeadFindings,checked:boolean)=>void;keys:Array<[keyof AdditionalLeadFindings,string]>}) {
