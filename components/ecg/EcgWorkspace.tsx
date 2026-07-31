@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { validateEcgFile } from "@/lib/ecg-image/image-parser";
 import { evaluateQuality } from "@/logic/quality/quality.js";
 import { placementWarnings } from "@/logic/lead-placement/placement.js";
+import { NavigatorRobot, STEP_NAVIGATOR_COMMENTS, type NavigatorState } from "@/components/character/NavigatorRobot";
 
 const qualityItems = [
   ["allLeads","12誘導がすべて写っている"],["leadLabels","誘導名が読める"],["waveformsComplete","波形が途中で切れていない"],
@@ -30,6 +31,8 @@ export function EcgWorkspace() {
   const [review,setReview]=useState<Record<string,{status:string,value:string}>>(()=>Object.fromEntries(findings.map(f=>[f.key,{status:"accepted",value:f.ai}])));
   const qualityResult=useMemo(()=>evaluateQuality(quality),[quality]);
   const warnings=useMemo(()=>placementWarnings(concerns),[concerns]);
+  const navigatorState:NavigatorState=warnings.length?"warning":file?"analyzing":"default";
+  const navigatorComment=navigatorState==="warning"?STEP_NAVIGATOR_COMMENTS[3]:navigatorState==="analyzing"?STEP_NAVIGATOR_COMMENTS[1]:STEP_NAVIGATOR_COMMENTS[0];
 
   useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview)},[preview]);
   function chooseFile(next:File|null){
@@ -43,12 +46,13 @@ export function EcgWorkspace() {
   const resultClass=qualityResult.grade==="C"?"result stop":qualityResult.grade==="B"?"result warn":"result";
   return <div className="shell">
     <aside className="side">
-      <div className="brand"><div className="brandmark">⌁</div><div><div className="eyebrow">Medical AI</div><h1>ECG Diagnostic Assistant</h1></div></div>
+      <div className="brand"><NavigatorRobot variant="icon" state={navigatorState}/><div><div className="eyebrow">Medical AI</div><h1>ECG Diagnostic Assistant</h1></div></div>
       <nav className="nav">{["撮影・記録品質","電極装着確認","画像アップロード","AI抽出結果","所見確認・修正","Red Flag","系統的読影","診断候補","Today's Plan","原因別対応"].map((x,i)=><a className={i===0?"active":""} href={`#section-${i}`} key={x}>{String(i+1).padStart(2,"0")}　{x}</a>)}</nav>
       <div className="privacy">LOCAL SESSION<br/>画像・患者情報は保存・外部送信されません</div>
     </aside>
     <main className="main">
       <header className="topbar"><div><div className="eyebrow">Cardiac navigation console</div><h2>心電図読影・対応支援ツール</h2><p className="subtitle">心電図を読むだけでなく、次の行動まで導く</p></div><span className="badge">Ver. 0.1 / MOCK ANALYSIS</span></header>
+      <NavigatorCard className="navigator-card--mobile" state={navigatorState} comment={navigatorComment}/>
       <div className="steps">{["品質","取込","抽出","警告","読影","対応"].map((s,i)=><span className={`step ${i===0?"on":""}`} key={s}>STEP {i} · {s}</span>)}</div>
 
       <section className="card" id="section-0">
@@ -95,9 +99,22 @@ export function EcgWorkspace() {
       <section className="card" id="section-7"><div className="cardhead"><div><div className="eyebrow">Differential</div><h3>診断候補・原因別対応</h3></div><span className="badge">ダミー表示</span></div><p className="muted">医師確定所見から将来のルールエンジンが生成します。Ver.0.1では診断確定や治療用量を提示しません。</p></section>
     </main>
     <aside className="right">
-      <div className="card"><div className="robot"><div className="robotshape"/><div><div className="eyebrow">Navigator</div><strong>画像品質と電極装着を確認します</strong><p className="muted" style={{fontSize:11}}>画像未配置時プレースホルダー</p></div></div></div>
+      <NavigatorCard className="navigator-card--desktop" state={navigatorState} comment={navigatorComment}/>
       <section className="card alert" id="section-5"><div className="eyebrow">Step 3</div><h3>Red Flag</h3><p className="muted">サンプル表示枠</p><h4>確認カテゴリ</h4><ul className="list"><li>急性冠動脈閉塞を疑う所見</li><li>持続性心室頻拍／心室細動</li><li>高度房室ブロック</li><li>wide QRS tachycardia</li><li>QT延長とTdPリスク</li><li>Brugadaパターン</li><li>高K血症疑い</li></ul><div className="result stop">理由・不足情報・直ちに確認する項目をここに表示します。</div></section>
       <section className="card" id="section-8"><div className="eyebrow">Today&apos;s Plan</div><h3>今日確認すること</h3><ul className="list">{["再心電図／前回との比較","血圧・意識・SpO₂","K・Ca・Mg","トロポニン","心エコー","右側／後壁誘導","循環器評価"].map(x=><li key={x}>{x}</li>)}</ul></section>
     </aside>
   </div>;
+}
+
+function NavigatorCard({state,comment,className}:{state:NavigatorState;comment:string;className:string}) {
+  const statusText={default:"待機中",analyzing:"解析中",warning:"警告",complete:"解析完了"}[state];
+  return <section className={`card navigator-card ${className}`} aria-label="Navigator">
+    <NavigatorRobot state={state}/>
+    <div className="navigator-card__copy">
+      <div className="eyebrow">Navigator</div>
+      <strong>{comment}</strong>
+      <span className="navigator-card__status"><i aria-hidden="true"/>{statusText}</span>
+      <p className="muted">画像未配置時プレースホルダー</p>
+    </div>
+  </section>;
 }
