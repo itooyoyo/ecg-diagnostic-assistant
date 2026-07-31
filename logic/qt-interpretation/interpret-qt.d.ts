@@ -1,0 +1,1 @@
+import type {QtcFormula,QtInterpretation,QtInterpretationInput} from "../../types/qt-interpretation";export function calculateQtc(qtMs:number|null,rrMs:number|null,heartRate:number|null,formula:QtcFormula):number|null;export function interpretQt(input:QtInterpretationInput):QtInterpretation;

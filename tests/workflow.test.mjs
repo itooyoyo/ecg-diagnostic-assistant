@@ -15,6 +15,8 @@ import { createDefaultStInput } from "../data/st-interpretation/defaults.js";
 import { interpretStChanges } from "../logic/st-interpretation/interpret-st.js";
 import { createDefaultTWaveInput } from "../data/t-wave-interpretation/defaults.js";
 import { interpretTWave } from "../logic/t-wave-interpretation/interpret-t-wave.js";
+import { createDefaultQtInput } from "../data/qt-interpretation/defaults.js";
+import { calculateQtc, interpretQt } from "../logic/qt-interpretation/interpret-qt.js";
 
 const good = {allLeads:true,leadLabels:true,waveformsComplete:true,speedVisible:true,gainVisible:true,gridVisible:true,inFocus:true,lowBlur:true,noGlare:true,noShadow:true,lowTilt:true,lowPerspective:true,multipleBeats:true,privacyChecked:true};
 test("all quality checks pass",()=>assert.equal(evaluateQuality(good).grade,"A"));
@@ -241,3 +243,19 @@ test("T wave: poor image quality is indeterminate",()=>{const x=createDefaultTWa
 test("T wave: chronic prior change does not trigger new ischemic red flag",()=>{const r=interpretTWave(withT([["V4","hyperacute","positive"],["V5","hyperacute","positive"]],{ischemicSymptoms:true},{newComparedWithPrior:false,priorEcgAvailable:true}));assert.equal(r.redFlags.length,0)});
 test("T wave: integrated plan entries are deduplicated",()=>{const r=interpretTWave(withT([["V2","hyperacute","positive"],["V3","hyperacute","positive"]],{ischemicSymptoms:true},{newComparedWithPrior:true}));assert.equal(r.nextActions.length,new Set(r.nextActions).size)});
 test("T wave: mobile CSS stacks lead map and detail controls",()=>{const ui=readFileSync(new URL("../components/interpretation/TWaveModule.tsx",import.meta.url),"utf8"),css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");assert.match(ui,/誘導分布・形態/);assert.match(css,/@media\(max-width:720px\).*t-wave-lead-grid/s)});
+
+test("QT: normal QT remains routine",()=>{const r=interpretQt(createDefaultQtInput());assert.equal(r.classification,"normal");assert.equal(r.urgency,"routine")});
+test("QT: 480 ms at 60 bpm is prolonged",()=>{const x=createDefaultQtInput();Object.assign(x,{qtMs:480,rrMs:1000,heartRate:60,formula:"fridericia"});assert.equal(interpretQt(x).classification,"prolonged")});
+test("QT: 500 ms is marked prolongation and red flag",()=>{const x=createDefaultQtInput();Object.assign(x,{qtMs:500,rrMs:1000,heartRate:60});const r=interpretQt(x);assert.equal(r.classification,"marked_prolongation");assert.ok(r.redFlags.length)});
+test("QT: 320 ms is short QT candidate",()=>{const x=createDefaultQtInput();Object.assign(x,{qtMs:320,rrMs:1000,heartRate:60});assert.equal(interpretQt(x).classification,"short")});
+test("QT: low calcium supports electrolyte cause",()=>{const x=createDefaultQtInput();Object.assign(x,{qtMs:490,rrMs:1000,heartRate:60,lowCa:true});assert.ok(interpretQt(x).possibleFactors.some(f=>f.category==="electrolyte"))});
+test("QT: low potassium adds TdP risk",()=>{const x=createDefaultQtInput();x.lowK=true;assert.ok(interpretQt(x).tdpRiskFactors.includes("低K"))});
+test("QT: high calcium with short QT supports electrolyte cause",()=>{const x=createDefaultQtInput();Object.assign(x,{qtMs:320,rrMs:1000,heartRate:60,highCa:true});assert.ok(interpretQt(x).possibleFactors.some(f=>f.category==="electrolyte"))});
+test("QT: prolonging drug is represented as a cause",()=>{const x=createDefaultQtInput();x.qtProlongingDrug=true;assert.ok(interpretQt(x).possibleFactors.some(f=>f.category==="drug"))});
+test("QT: bradycardia contributes to TdP risk",()=>{const x=createDefaultQtInput();Object.assign(x,{heartRate:45,rrMs:1333,bradycardia:true});assert.ok(interpretQt(x).tdpRiskFactors.includes("徐脈"))});
+test("QT: U wave overlap creates measurement limitation",()=>{const x=createDefaultQtInput();x.measurementStatus="u_wave_overlap";const r=interpretQt(x);assert.equal(r.classification,"indeterminate");assert.ok(r.warnings.some(v=>v.includes("QT測定制限")))});
+test("QT: Bazett and Fridericia differ during tachycardia",()=>{const b=calculateQtc(350,500,120,"bazett"),f=calculateQtc(350,500,120,"fridericia");assert.notEqual(b,f);assert.ok(b>f)});
+test("QT: physician correction recalculates classification",()=>{const x=createDefaultQtInput();assert.equal(interpretQt(x).classification,"normal");Object.assign(x,{qtMs:500,rrMs:1000,heartRate:60});assert.equal(interpretQt(x).classification,"marked_prolongation")});
+test("QT: overlapping risk factors raise TdP priority",()=>{const x=createDefaultQtInput();Object.assign(x,{qtMs:510,rrMs:1000,heartRate:60,syncope:true,lowK:true,lowMg:true,qtProlongingDrug:true});assert.equal(interpretQt(x).tdpRiskLevel,"high")});
+test("QT: abnormal plan includes required checks without duplicates",()=>{const x=createDefaultQtInput();Object.assign(x,{qtMs:490,rrMs:1000,heartRate:60});const r=interpretQt(x);for(const item of ["K","Mg","Ca","服薬","連続モニター","再ECG","失神歴"])assert.ok(r.additionalChecks.includes(item));assert.equal(r.additionalChecks.length,new Set(r.additionalChecks).size)});
+test("QT: mobile module stacks controls",()=>{const ui=readFileSync(new URL("../components/interpretation/QtModule.tsx",import.meta.url),"utf8"),css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");assert.match(ui,/QT測定・医師修正/);assert.match(ui,/Clinical Pearl/);assert.match(css,/@media\(max-width:720px\).*qt-grid/s)});
