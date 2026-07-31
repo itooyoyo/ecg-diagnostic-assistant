@@ -5,7 +5,8 @@ import { placementWarnings } from "../logic/lead-placement/placement.js";
 import { resolveReviewedFinding } from "../logic/interpretation/review.js";
 import { validateEcgFile } from "../lib/ecg-image/image-parser.js";
 import { suggestAdditionalLeads } from "../logic/lead-placement/additional-leads.js";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { classifyTachyarrhythmia } from "../logic/tachyarrhythmia/classify.js";
 
 const good = {allLeads:true,leadLabels:true,waveformsComplete:true,speedVisible:true,gainVisible:true,gridVisible:true,inFocus:true,lowBlur:true,noGlare:true,noShadow:true,lowTilt:true,lowPerspective:true,multipleBeats:true,privacyChecked:true};
 test("all quality checks pass",()=>assert.equal(evaluateQuality(good).grade,"A"));
@@ -43,3 +44,54 @@ test("V1 through V3 ST depression suggests posterior leads",()=>{
 test("suspected right coronary occlusion suggests right-sided leads",()=>assert.equal(suggestAdditionalLeads({...noAdditionalSignals,suspectedRVOcclusion:true})[0].type,"right-sided"));
 test("suspected posterior occlusion suggests posterior leads",()=>assert.equal(suggestAdditionalLeads({...noAdditionalSignals,suspectedPosteriorOcclusion:true})[0].type,"posterior"));
 test("no findings does not routinely suggest additional leads",()=>assert.deepEqual(suggestAdditionalLeads(noAdditionalSignals),[]));
+const stableTachy={heartRate:150,qrsMs:90,regularity:"regular",pWave:"unknown",pulsePresent:true,systolicBp:120,hypotension:false,alteredMentalStatus:false,shockSigns:false,ischemicChestPain:false,acuteHeartFailure:false,pulmonaryEdema:false,severeRespiratoryFailure:false,syncope:false,markedPresyncope:false,organHypoperfusion:false,wpwHistory:false,qrsMorphologyVariable:false,priorMi:false,structuralHeartDisease:false,sinusFeatures:false,qtcMs:null,potassium:null,calcium:null,magnesium:null};
+test("stable narrow regular tachycardia is classified",()=>assert.equal(classifyTachyarrhythmia(stableTachy).classification,"narrow regular"));
+test("narrow irregular lists AF flutter and MAT",()=>{
+  const result=classifyTachyarrhythmia({...stableTachy,regularity:"irregular"});
+  assert.ok(result.candidates.includes("心房細動"));
+  assert.ok(result.candidates.includes("可変伝導心房粗動"));
+  assert.ok(result.candidates.includes("多源性心房頻拍"));
+});
+test("wide regular prioritizes VT",()=>assert.match(classifyTachyarrhythmia({...stableTachy,qrsMs:140}).priority,/心室頻拍/));
+test("wide irregular is a red flag",()=>assert.ok(classifyTachyarrhythmia({...stableTachy,qrsMs:140,regularity:"irregular"}).redFlags.includes("wide irregular tachycardia")));
+test("tachycardia with hypotension is unstable",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,hypotension:true}).hemodynamics.status,"unstable"));
+test("altered mental status suggests synchronized treatment path",()=>assert.match(classifyTachyarrhythmia({...stableTachy,alteredMentalStatus:true}).hemodynamics.message,/同期/));
+test("pulseless tachycardia branches to cardiac arrest",()=>{
+  const result=classifyTachyarrhythmia({...stableTachy,pulsePresent:false});
+  assert.equal(result.hemodynamics.status,"cardiac-arrest");
+  assert.doesNotMatch(result.hemodynamics.message,/同期カルディオバージョンを直ちに検討/);
+});
+test("suspected pre-excited AF warns against AV nodal blockade",()=>{
+  const result=classifyTachyarrhythmia({...stableTachy,qrsMs:140,regularity:"irregular",wpwHistory:true});
+  assert.ok(result.warnings.some(x=>x.includes("房室結節のみを遮断")));
+});
+test("unknown P wave is not treated as absent or normal",()=>{
+  const result=classifyTachyarrhythmia({...stableTachy,pWave:"unknown"});
+  assert.ok(result.missing.some(x=>x.includes("P波")));
+});
+test("clinician corrected QRS width recalculates narrow to wide",()=>{
+  assert.equal(classifyTachyarrhythmia(stableTachy).classification,"narrow regular");
+  assert.equal(classifyTachyarrhythmia({...stableTachy,qrsMs:120}).classification,"wide regular");
+});
+test("clinician corrected regularity recalculates category",()=>{
+  assert.equal(classifyTachyarrhythmia(stableTachy).classification,"narrow regular");
+  assert.equal(classifyTachyarrhythmia({...stableTachy,regularity:"irregular"}).classification,"narrow irregular");
+});
+test("sinus tachycardia features prioritize cause search",()=>assert.match(classifyTachyarrhythmia({...stableTachy,sinusFeatures:true}).priority,/原因検索/));
+test("wide regular with prior MI strengthens VT support",()=>assert.match(classifyTachyarrhythmia({...stableTachy,qrsMs:140,priorMi:true}).priority,/強く疑う/));
+test("missing K Ca Mg are listed as insufficient information",()=>{
+  const result=classifyTachyarrhythmia(stableTachy);
+  for(const item of ["K","Ca","Mg"])assert.ok(result.missing.includes(item));
+});
+test("long QT wide irregular rhythm includes TdP",()=>{
+  const result=classifyTachyarrhythmia({...stableTachy,qrsMs:140,regularity:"irregular",qtcMs:520});
+  assert.equal(result.candidates[0],"QT延長に伴うTdP");
+});
+test("navigator reference image from user exists",()=>assert.equal(existsSync(new URL("../public/images/robot/navigator-reference.png",import.meta.url)),true));
+test("navigator falls back to compact CSS character when rendered image is absent",()=>{
+  assert.equal(existsSync(new URL("../public/images/robot/robot-default.png",import.meta.url)),false);
+  assert.match(readFileSync(new URL("../app/globals.css",import.meta.url),"utf8"),/\.navigator-robot__head/);
+});
+test("navigator warning state includes Red Flag text",()=>assert.match(readFileSync(new URL("../components/character/NavigatorRobot.tsx",import.meta.url),"utf8"),/warning: "Red Flag"/));
+test("navigator animation respects reduced motion",()=>assert.match(readFileSync(new URL("../app/globals.css",import.meta.url),"utf8"),/@media\(prefers-reduced-motion:reduce\)/));
+test("mobile CSS hides duplicate desktop navigator",()=>assert.match(readFileSync(new URL("../app/globals.css",import.meta.url),"utf8"),/navigator-card--desktop\{display:none!important\}/));

@@ -19,8 +19,8 @@ export const STEP_NAVIGATOR_COMMENTS = [
 const stateLabels: Record<NavigatorState, string> = {
   default: "待機中",
   analyzing: "解析中",
-  warning: "警告",
-  complete: "解析完了",
+  warning: "Red Flag",
+  complete: "確認完了",
 };
 
 type NavigatorRobotProps = {

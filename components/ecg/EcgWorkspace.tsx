@@ -5,6 +5,8 @@ import { validateEcgFile } from "@/lib/ecg-image/image-parser";
 import { evaluateQuality } from "@/logic/quality/quality.js";
 import { NavigatorRobot, STEP_NAVIGATOR_COMMENTS, type NavigatorState } from "@/components/character/NavigatorRobot";
 import { LeadPlacementGuide } from "@/components/ecg/LeadPlacementGuide";
+import { TachyarrhythmiaModule } from "@/components/ecg/TachyarrhythmiaModule";
+import type { Regularity } from "@/logic/tachyarrhythmia/classify.js";
 
 const qualityItems = [
   ["allLeads","12誘導がすべて写っている"],["leadLabels","誘導名が読める"],["waveformsComplete","波形が途中で切れていない"],
@@ -23,13 +25,20 @@ const findings = [
 export function EcgWorkspace() {
   const [quality,setQuality]=useState<Record<string,boolean>>(()=>Object.fromEntries(qualityItems.map(([k])=>[k,false])));
   const [hasPlacementWarning,setHasPlacementWarning]=useState(false);
+  const [hasTachyRedFlag,setHasTachyRedFlag]=useState(false);
   const [file,setFile]=useState<File|null>(null);
   const [preview,setPreview]=useState("");
   const [fileError,setFileError]=useState("");
   const [review,setReview]=useState<Record<string,{status:string,value:string}>>(()=>Object.fromEntries(findings.map(f=>[f.key,{status:"accepted",value:f.ai}])));
   const qualityResult=useMemo(()=>evaluateQuality(quality),[quality]);
-  const navigatorState:NavigatorState=hasPlacementWarning?"warning":file?"analyzing":"default";
-  const navigatorComment=navigatorState==="warning"?STEP_NAVIGATOR_COMMENTS[3]:navigatorState==="analyzing"?STEP_NAVIGATOR_COMMENTS[1]:STEP_NAVIGATOR_COMMENTS[0];
+  const hasClinicianEdits=Object.values(review).some(item=>item.status!=="accepted");
+  const navigatorState:NavigatorState=hasPlacementWarning||hasTachyRedFlag?"warning":file?"analyzing":hasClinicianEdits?"complete":"default";
+  const confirmedValue=(key:string,aiValue:string)=>review[key]?.status==="accepted"?aiValue:review[key]?.status==="edited"?review[key].value:null;
+  const confirmedHeartRate=numberFromFinding(confirmedValue("heartRate","72 bpm"));
+  const confirmedQrs=numberFromFinding(confirmedValue("qrs","92 ms"));
+  const confirmedRegularity:Regularity=confirmedValue("regularity","整")==="整"?"regular":confirmedValue("regularity","整")==="不整"?"irregular":"unknown";
+  const tachyActive=confirmedHeartRate!=null&&confirmedHeartRate>=100;
+  const navigatorComment=hasPlacementWarning||hasTachyRedFlag?"緊急対応を優先してください":tachyActive?"QRS幅と規則性から整理します":hasClinicianEdits?"修正後の所見で再計算しました":navigatorState==="analyzing"?STEP_NAVIGATOR_COMMENTS[1]:STEP_NAVIGATOR_COMMENTS[0];
 
   useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview)},[preview]);
   function chooseFile(next:File|null){
@@ -76,6 +85,7 @@ export function EcgWorkspace() {
         {findings.map(f=><div className="finding-row" key={f.key}><div><strong>{f.label}</strong><br/><span className="muted">AI: {f.ai}</span></div><input aria-label={`${f.label}の医師修正値`} value={review[f.key].value} onChange={e=>setReview(x=>({...x,[f.key]:{status:"edited",value:e.target.value}}))}/><select aria-label={`${f.label}の判定`} value={review[f.key].status} onChange={e=>setReview(x=>({...x,[f.key]:{...x[f.key],status:e.target.value}}))}><option value="accepted">正しい</option><option value="edited">修正</option><option value="rejected">削除</option><option value="indeterminate">判定不能</option></select></div>)}
         <div className="result">診断候補・対応は医師確認後の確定所見を使用します。削除・判定不能は正常として扱いません。</div>
       </section>
+      <TachyarrhythmiaModule heartRate={confirmedHeartRate} qrsMs={confirmedQrs} regularity={confirmedRegularity} onRedFlagChange={setHasTachyRedFlag}/>
       <section className="card" id="section-6"><div className="cardhead"><div><div className="eyebrow">Step 4</div><h3>系統的読影</h3></div><span className="badge">UI骨格</span></div><div className="systematic">{systematic.map(x=><div key={x}>{x}</div>)}</div></section>
       <section className="card" id="section-7"><div className="cardhead"><div><div className="eyebrow">Differential</div><h3>診断候補・原因別対応</h3></div><span className="badge">ダミー表示</span></div><p className="muted">医師確定所見から将来のルールエンジンが生成します。Ver.0.1では診断確定や治療用量を提示しません。</p></section>
     </main>
@@ -88,14 +98,15 @@ export function EcgWorkspace() {
 }
 
 function NavigatorCard({state,comment,className}:{state:NavigatorState;comment:string;className:string}) {
-  const statusText={default:"待機中",analyzing:"解析中",warning:"警告",complete:"解析完了"}[state];
+  const statusText={default:"待機中",analyzing:"解析中",warning:"Red Flag",complete:"確認完了"}[state];
   return <section className={`card navigator-card ${className}`} aria-label="Navigator">
     <NavigatorRobot state={state}/>
     <div className="navigator-card__copy">
       <div className="eyebrow">Navigator</div>
       <strong>{comment}</strong>
       <span className="navigator-card__status"><i aria-hidden="true"/>{statusText}</span>
-      <p className="muted">画像未配置時プレースホルダー</p>
     </div>
   </section>;
 }
+
+function numberFromFinding(value:string|null){if(value==null)return null;const n=Number.parseFloat(value);return Number.isFinite(n)?n:null}

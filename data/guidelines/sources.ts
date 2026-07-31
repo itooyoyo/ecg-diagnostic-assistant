@@ -25,4 +25,28 @@ export const evidenceRegistry: EvidenceSource[] = [
     url:"https://www.escardio.org/guidelines/clinical-practice-guidelines/all-esc-practice-guidelines/acute-coronary-syndromes/",
     evidenceType:"guideline",
   },
+  {
+    sourceOrganization:"JCS",
+    sourceTitle:"JCS/JHRS 2024 Guideline Focused Update on Management of Cardiac Arrhythmias",
+    publicationYear:2024,
+    section:"不整脈治療の安全性とリスク評価",
+    url:"https://www.j-circ.or.jp/cms/wp-content/uploads/2024/03/JCS2024_Iwasaki.pdf",
+    evidenceType:"guideline",
+  },
+  {
+    sourceOrganization:"JCS",
+    sourceTitle:"2020年改訂版 不整脈薬物治療ガイドライン",
+    publicationYear:2020,
+    section:"発作性上室頻拍、心房細動、心室頻拍、多形性心室頻拍／TdP",
+    url:"https://www.j-circ.or.jp/cms/wp-content/uploads/2020/01/JCS2020_Ono.pdf",
+    evidenceType:"guideline",
+  },
+  {
+    sourceOrganization:"AHA/ACC/HRS",
+    sourceTitle:"2025 AHA Guidelines for CPR and ECC: Adult Tachyarrhythmia With a Pulse Algorithm",
+    publicationYear:2025,
+    section:"Adult Advanced Life Support",
+    url:"https://www.heart.org/-/media/CPR-Files/CPR-Guidelines-Files/2025-Algorithms/Algorithm-ACLS-Tachycardia-250514.pdf",
+    evidenceType:"guideline",
+  },
 ];
