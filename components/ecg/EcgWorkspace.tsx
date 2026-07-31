@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { validateEcgFile } from "@/lib/ecg-image/image-parser";
 import { evaluateQuality } from "@/logic/quality/quality.js";
-import { placementWarnings } from "@/logic/lead-placement/placement.js";
 import { NavigatorRobot, STEP_NAVIGATOR_COMMENTS, type NavigatorState } from "@/components/character/NavigatorRobot";
+import { LeadPlacementGuide } from "@/components/ecg/LeadPlacementGuide";
 
 const qualityItems = [
   ["allLeads","12誘導がすべて写っている"],["leadLabels","誘導名が読める"],["waveformsComplete","波形が途中で切れていない"],
@@ -13,7 +13,6 @@ const qualityItems = [
   ["noShadow","影で波形が隠れていない"],["lowTilt","画像の傾きが強くない"],["lowPerspective","遠近歪みが強くない"],
   ["multipleBeats","複数拍が確認できる"],["privacyChecked","患者氏名やIDの映り込みを確認した"],
 ] as const;
-const placementItems = ["V1は第4肋間・胸骨右縁","V2は第4肋間・胸骨左縁","V3はV2とV4の中点","V4は第5肋間・左鎖骨中線","V5はV4と同じ高さ","V6はV4と同じ高さ","四肢電極の左右を確認","誘導コードを確認","体動・筋電図ノイズを確認","基線動揺を確認"];
 const systematic = ["記録品質","電極装着","心拍数","リズム","P波","PR間隔","QRS幅","QRS形態","電気軸","R波進行","Q波","ST変化","T波","U波","QT・QTc","前回心電図との比較"];
 const findings = [
   {key:"heartRate",label:"心拍数",ai:"72 bpm"},{key:"rhythm",label:"リズム",ai:"洞調律"},{key:"regularity",label:"規則性",ai:"整"},
@@ -23,15 +22,13 @@ const findings = [
 
 export function EcgWorkspace() {
   const [quality,setQuality]=useState<Record<string,boolean>>(()=>Object.fromEntries(qualityItems.map(([k])=>[k,false])));
-  const [placement,setPlacement]=useState<boolean[]>(Array(placementItems.length).fill(false));
-  const [concerns,setConcerns]=useState({raLaReversal:false,v1v2High:false});
+  const [hasPlacementWarning,setHasPlacementWarning]=useState(false);
   const [file,setFile]=useState<File|null>(null);
   const [preview,setPreview]=useState("");
   const [fileError,setFileError]=useState("");
   const [review,setReview]=useState<Record<string,{status:string,value:string}>>(()=>Object.fromEntries(findings.map(f=>[f.key,{status:"accepted",value:f.ai}])));
   const qualityResult=useMemo(()=>evaluateQuality(quality),[quality]);
-  const warnings=useMemo(()=>placementWarnings(concerns),[concerns]);
-  const navigatorState:NavigatorState=warnings.length?"warning":file?"analyzing":"default";
+  const navigatorState:NavigatorState=hasPlacementWarning?"warning":file?"analyzing":"default";
   const navigatorComment=navigatorState==="warning"?STEP_NAVIGATOR_COMMENTS[3]:navigatorState==="analyzing"?STEP_NAVIGATOR_COMMENTS[1]:STEP_NAVIGATOR_COMMENTS[0];
 
   useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview)},[preview]);
@@ -61,23 +58,7 @@ export function EcgWorkspace() {
         <div className={resultClass}><strong>{qualityResult.grade}. {qualityResult.message}</strong><br/>{qualityResult.grade==="C"?"正面から、反射を避け、全12誘導・誘導名・速度・感度を含めて波形が切れないよう再撮影してください。":qualityResult.grade==="B"?"未確認項目があります。医師の判断で注意付き解析を続行できます。":"品質項目をすべて確認しました。"}</div>
       </section>
 
-      <section className="card" id="section-1">
-        <div className="cardhead"><div><div className="eyebrow">Lead placement</div><h3>電極装着確認</h3></div></div>
-        <details><summary>電極装着ガイドを開く</summary>
-          <h4>四肢誘導</h4><div className="leadgrid">{["RA：右上肢","LA：左上肢","RL：右下肢","LL：左下肢"].map(x=><div className="lead" key={x}>{x}</div>)}</div>
-          <div className="placeholder">図版未配置：/images/ecg/lead-placement-limb.png</div>
-          <h4>胸部誘導</h4><div className="leadgrid">{["V1：第4肋間・胸骨右縁","V2：第4肋間・胸骨左縁","V3：V2とV4の中点","V4：第5肋間・左鎖骨中線","V5：V4と同じ高さ・左前腋窩線","V6：V4と同じ高さ・左中腋窩線"].map(x=><div className="lead" key={x}>{x}</div>)}</div>
-          <div className="result warn">V5・V6はV4と同じ水平線。胸骨角から肋間を同定し、乳頭を基準にしません。女性も乳房組織の下ではなく正しい胸壁上に配置します。</div>
-          <div className="placeholder">図版未配置：/images/ecg/lead-placement-precordial.png</div>
-        </details>
-        <h4>装着チェックリスト</h4><div className="checks">{placementItems.map((x,i)=><label className="check" key={x}><input type="checkbox" checked={placement[i]} onChange={e=>setPlacement(v=>v.map((n,j)=>j===i?e.target.checked:n))}/>{x}</label>)}</div>
-        <h4>装着ミスを疑う所見</h4><div className="grid2">
-          <label className="check"><input type="checkbox" checked={concerns.raLaReversal} onChange={e=>setConcerns(x=>({...x,raLaReversal:e.target.checked}))}/>RA–LA逆接続を疑う</label>
-          <label className="check"><input type="checkbox" checked={concerns.v1v2High} onChange={e=>setConcerns(x=>({...x,v1v2High:e.target.checked}))}/>V1・V2高位装着を疑う</label>
-        </div>
-        {warnings.map(w=><div className="result warn" key={w.code}>{w.message}<br/>診断を確定せず再記録を推奨します。続行時は解析結果に警告を付けます。</div>)}
-        <details><summary>追加誘導ガイド</summary><div className="grid2"><div><h4>右側胸部誘導</h4><p className="muted">下壁虚血／右室梗塞の評価候補</p><div className="leadgrid"><div className="lead">V3R</div><div className="lead" style={{border:"1px solid var(--cyan)"}}>V4R ★</div><div className="lead">V5R・V6R</div></div></div><div><h4>後壁誘導</h4><p className="muted">V1〜V3のST低下／後壁虚血の評価候補</p><div className="leadgrid">{["V7","V8","V9"].map(x=><div className="lead" key={x}>{x}</div>)}</div></div></div></details>
-      </section>
+      <LeadPlacementGuide onWarningChange={setHasPlacementWarning}/>
 
       <section className="card" id="section-2"><div className="cardhead"><div><div className="eyebrow">Step 1</div><h3>心電図画像アップロード</h3></div><span className="badge">端末内のみ</span></div>
         <div className="grid2"><div className="upload"><div><strong>JPG / JPEG / PNG / PDF</strong><p className="muted">20MB以下。サーバー保存・外部送信なし</p><input aria-label="心電図ファイル" type="file" accept=".jpg,.jpeg,.png,.pdf" onChange={e=>chooseFile(e.target.files?.[0]??null)}/>{fileError&&<div className="error">{fileError}</div>}</div></div>
