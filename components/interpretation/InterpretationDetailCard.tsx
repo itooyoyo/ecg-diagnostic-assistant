@@ -8,6 +8,8 @@ import type { TWaveInterpretation, TWaveInterpretationInput } from "@/types/t-wa
 import { TWaveModule } from "./TWaveModule";
 import type { QtInterpretation, QtInterpretationInput } from "@/types/qt-interpretation";
 import { QtModule } from "./QtModule";
+import type { VentricularEctopyInput, VentricularEctopyInterpretation } from "@/types/ventricular-ectopy";
+import { VentricularEctopyModule } from "./VentricularEctopyModule";
 
 const statusLabels: Record<InterpretationStatus, string> = {
   accepted: "正しい",
@@ -19,7 +21,7 @@ const statusLabels: Record<InterpretationStatus, string> = {
 export function InterpretationDetailCard({
   item,
   onChange,
-  stInput, stResult, onStChange, tWaveInput, tWaveResult, onTWaveChange, qtInput, qtResult, onQtChange,
+  stInput, stResult, onStChange, tWaveInput, tWaveResult, onTWaveChange, qtInput, qtResult, onQtChange, pvcInput, pvcResult, onPvcChange,
 }: {
   item: EcgInterpretationItem;
   onChange: (next: EcgInterpretationItem) => void;
@@ -32,6 +34,9 @@ export function InterpretationDetailCard({
   qtInput?: QtInterpretationInput;
   qtResult?: QtInterpretation;
   onQtChange: (input: QtInterpretationInput) => void;
+  pvcInput?: VentricularEctopyInput;
+  pvcResult?: VentricularEctopyInterpretation;
+  onPvcChange: (input: VentricularEctopyInput) => void;
 }) {
   return <div className="interpretation-detail">
     <div className="interpretation-values">
@@ -45,6 +50,7 @@ export function InterpretationDetailCard({
     {stInput&&stResult&&<STChangeModule input={stInput} result={stResult} onChange={onStChange}/>}
     {tWaveInput&&tWaveResult&&<TWaveModule input={tWaveInput} result={tWaveResult} onChange={onTWaveChange}/>}
     {qtInput&&qtResult&&<QtModule input={qtInput} result={qtResult} onChange={onQtChange}/>}
+    {pvcInput&&pvcResult&&<VentricularEctopyModule input={pvcInput} result={pvcResult} onChange={onPvcChange}/>}
 
     <DetailSection title="所見の意味" items={item.meaning} />
     <section><h4>考えられる要因</h4><FindingFactors item={item}/></section>

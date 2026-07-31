@@ -17,6 +17,8 @@ import { createDefaultTWaveInput } from "../data/t-wave-interpretation/defaults.
 import { interpretTWave } from "../logic/t-wave-interpretation/interpret-t-wave.js";
 import { createDefaultQtInput } from "../data/qt-interpretation/defaults.js";
 import { calculateQtc, interpretQt } from "../logic/qt-interpretation/interpret-qt.js";
+import { createDefaultVentricularEctopyInput } from "../data/ventricular-ectopy/defaults.js";
+import { interpretVentricularEctopy } from "../logic/ventricular-ectopy/interpret-ventricular-ectopy.js";
 
 const good = {allLeads:true,leadLabels:true,waveformsComplete:true,speedVisible:true,gainVisible:true,gridVisible:true,inFocus:true,lowBlur:true,noGlare:true,noShadow:true,lowTilt:true,lowPerspective:true,multipleBeats:true,privacyChecked:true};
 test("all quality checks pass",()=>assert.equal(evaluateQuality(good).grade,"A"));
@@ -259,3 +261,30 @@ test("QT: physician correction recalculates classification",()=>{const x=createD
 test("QT: overlapping risk factors raise TdP priority",()=>{const x=createDefaultQtInput();Object.assign(x,{qtMs:510,rrMs:1000,heartRate:60,syncope:true,lowK:true,lowMg:true,qtProlongingDrug:true});assert.equal(interpretQt(x).tdpRiskLevel,"high")});
 test("QT: abnormal plan includes required checks without duplicates",()=>{const x=createDefaultQtInput();Object.assign(x,{qtMs:490,rrMs:1000,heartRate:60});const r=interpretQt(x);for(const item of ["K","Mg","Ca","服薬","連続モニター","再ECG","失神歴"])assert.ok(r.additionalChecks.includes(item));assert.equal(r.additionalChecks.length,new Set(r.additionalChecks).size)});
 test("QT: mobile module stacks controls",()=>{const ui=readFileSync(new URL("../components/interpretation/QtModule.tsx",import.meta.url),"utf8"),css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");assert.match(ui,/QT測定・医師修正/);assert.match(ui,/Clinical Pearl/);assert.match(css,/@media\(max-width:720px\).*qt-grid/s)});
+
+const pvcInput=(patch={},finding={})=>{const x=createDefaultVentricularEctopyInput();Object.assign(x,{clinicianClassification:"pvc",pvcCountInTracing:1,totalAnalyzedBeats:10,...patch});Object.assign(x.finding,finding);return x};
+const pvcContext=(qtPatch={},stPatch={},tPatch={})=>({qtResult:{...interpretQt(createDefaultQtInput()),...qtPatch},stResult:{...interpretStChanges(createDefaultStInput()),...stPatch},tWaveResult:{...interpretTWave(createDefaultTWaveInput()),...tPatch}});
+test("PVC: no ectopy remains compact normal",()=>assert.equal(interpretVentricularEctopy(createDefaultVentricularEctopyInput()).overallClassification,"no_ventricular_ectopy"));
+test("PVC: isolated monomorphic asymptomatic PVC is low complexity",()=>{const r=interpretVentricularEctopy(pvcInput());assert.equal(r.overallClassification,"isolated_low_complexity");assert.equal(r.redFlags.length,0)});
+test("PVC: bigeminy is complex ectopy",()=>assert.equal(interpretVentricularEctopy(pvcInput({}, {ectopyType:"bigeminy"})).overallClassification,"complex_ventricular_ectopy"));
+test("PVC: trigeminy is complex ectopy",()=>assert.equal(interpretVentricularEctopy(pvcInput({}, {ectopyType:"trigeminy"})).overallClassification,"complex_ventricular_ectopy"));
+test("PVC: couplet is repetitive",()=>assert.equal(interpretVentricularEctopy(pvcInput({consecutiveBeats:2},{ectopyType:"couplet"})).repetitiveEctopy,true));
+test("PVC: triplet routes to tachyarrhythmia reevaluation",()=>{const r=interpretVentricularEctopy(pvcInput({consecutiveBeats:3},{ectopyType:"triplet"}));assert.equal(r.overallClassification,"ventricular_tachyarrhythmia_candidate");assert.ok(r.nextActions.some(x=>x.includes("頻脈性不整脈")))});
+test("PVC: polymorphic morphology increases complexity",()=>assert.equal(interpretVentricularEctopy(pvcInput({}, {morphology:"polymorphic"})).overallClassification,"complex_ventricular_ectopy"));
+test("PVC: syncope is red flag",()=>assert.equal(interpretVentricularEctopy(pvcInput({syncope:true})).urgency,"emergency"));
+test("PVC: hemodynamic instability is prioritized",()=>assert.match(interpretVentricularEctopy(pvcInput({hemodynamicInstability:true})).nextActions[0],/循環動態/));
+test("PVC: repetitive ectopy plus acute ST change raises ischemic red flag",()=>{const r=interpretVentricularEctopy(pvcInput({consecutiveBeats:2}),pvcContext({}, {overallClassification:"st_elevation"}));assert.ok(r.redFlags.some(x=>x.includes("ST変化")))});
+test("PVC: QT prolongation is integrated",()=>assert.equal(interpretVentricularEctopy(pvcInput(),pvcContext({classification:"prolonged"})).associatedQtProlongation,true));
+test("PVC: early beat on T wave becomes R on T candidate",()=>assert.equal(interpretVentricularEctopy(pvcInput({pvcStartMs:300},{timing:"r_on_t_candidate"})).rOnTCandidate,true));
+test("PVC: unknown T end limits R on T classification",()=>{const r=interpretVentricularEctopy(pvcInput({pvcStartMs:300,tEndMs:null},{timing:"r_on_t_candidate"}));assert.equal(r.rOnTCandidate,null);assert.ok(r.warnings.some(x=>x.includes("判定制限")))});
+test("PVC: correcting U/T boundary recalculates R on T",()=>{const x=pvcInput({pvcStartMs:410,tEndMs:null,uStartMs:400},{timing:"r_on_t_candidate"});assert.equal(interpretVentricularEctopy(x).rOnTCandidate,null);x.tEndMs=420;x.uStartMs=450;assert.equal(interpretVentricularEctopy(x).rOnTCandidate,true)});
+test("PVC: polymorphic with low K and low Mg has high urgency",()=>assert.equal(interpretVentricularEctopy(pvcInput({lowK:true,lowMg:true},{morphology:"polymorphic"})).urgency,"emergency"));
+test("PVC: PAC with aberrancy is not confirmed as PVC",()=>{const x=pvcInput();x.clinicianClassification="pac_aberrancy";assert.equal(interpretVentricularEctopy(x).pvcPresent,false)});
+test("PVC: paced beat is not confirmed as PVC",()=>{const x=pvcInput();x.clinicianClassification="paced";assert.equal(interpretVentricularEctopy(x).pvcPresent,false)});
+test("PVC: artifact is indeterminate rather than normal",()=>{const x=pvcInput();x.clinicianClassification="artifact";assert.equal(interpretVentricularEctopy(x).overallClassification,"indeterminate")});
+test("PVC: short tracing ratio is not labeled long-term burden",()=>{const r=interpretVentricularEctopy(pvcInput({pvcCountInTracing:2,totalAnalyzedBeats:20}));assert.equal(r.estimatedRecordingFrequencyPercent,10);assert.ok(r.warnings.some(x=>x.includes("長時間PVC burdenではありません")))});
+test("PVC: high long-term burden with reduced LVEF suggests cardiomyopathy",()=>{const r=interpretVentricularEctopy(pvcInput({longTermBurdenAssessed:true,longTermBurdenPercent:12,lvefReduced:true}));assert.ok(r.possibleFactors.some(x=>x.id==="pvc-pvc-cm"))});
+test("PVC: physician deletion removes PVC logic",()=>{const x=pvcInput();x.clinicianClassification="none";assert.equal(interpretVentricularEctopy(x).findings.length,0)});
+test("PVC: morphology correction recalculates complexity",()=>{const x=pvcInput();assert.equal(interpretVentricularEctopy(x).overallClassification,"isolated_low_complexity");x.finding.morphology="polymorphic";assert.equal(interpretVentricularEctopy(x).overallClassification,"complex_ventricular_ectopy")});
+test("PVC: plan checks contain no duplicates",()=>{const r=interpretVentricularEctopy(pvcInput());assert.equal(r.additionalChecks.length,new Set(r.additionalChecks).size)});
+test("PVC: mobile CSS stacks card and preserves labeled timeline",()=>{const ui=readFileSync(new URL("../components/interpretation/VentricularEctopyModule.tsx",import.meta.url),"utf8"),css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");assert.match(ui,/先行QRS、ST、T波、U波とPVC開始位置/);assert.match(css,/@media\(max-width:720px\).*pvc-grid/s)});

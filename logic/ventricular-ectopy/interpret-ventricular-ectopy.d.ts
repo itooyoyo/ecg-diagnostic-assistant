@@ -1,0 +1,1 @@
+import type {VentricularEctopyContext,VentricularEctopyInput,VentricularEctopyInterpretation} from "../../types/ventricular-ectopy";export function interpretVentricularEctopy(input:VentricularEctopyInput,context?:Partial<VentricularEctopyContext>):VentricularEctopyInterpretation;
