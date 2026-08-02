@@ -1,0 +1,5 @@
+import type {EvidenceSource,FindingFactor,UrgencyLevel} from "@/types/interpretation";
+export type ElectrolyteTarget="hyperkalemia"|"hypokalemia"|"hypercalcemia"|"hypocalcemia"|"hypomagnesemia";
+export type SuspicionLevel="suspicious"|"possible"|"no_typical_findings"|"indeterminate";
+export type ElectrolyteInput={peakedT:boolean;flattenedT:boolean;invertedT:boolean;stDepression:boolean;prominentU:boolean;quProlongation:boolean;pWaveFlattened:boolean;pWaveAbsent:boolean;prProlonged:boolean;qrsProlonged:boolean;wideQrs:boolean;sineWave:boolean;bradycardia:boolean;qtShort:boolean;stShort:boolean;qAtcShort:boolean;qtProlonged:boolean;stProlonged:boolean;pvc:boolean;frequentPvc:boolean;rOnT:boolean;vt:boolean;vf:boolean;tdp:boolean;imageQualityAdequate:boolean;clinicianOverrides:Record<ElectrolyteTarget,"auto"|SuspicionLevel>};
+export type ElectrolyteInterpretation={assessments:Record<ElectrolyteTarget,{level:SuspicionLevel;supportingFindings:string[];clinicalPearl:string}>;urgency:UrgencyLevel;redFlags:string[];possibleFactors:FindingFactor[];mustNotMiss:FindingFactor[];additionalChecks:string[];nextActions:string[];limitations:string[];sources:EvidenceSource[]};

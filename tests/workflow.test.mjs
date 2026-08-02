@@ -23,6 +23,8 @@ import { createDefaultVentricularEctopyInput } from "../data/ventricular-ectopy/
 import { interpretVentricularEctopy } from "../logic/ventricular-ectopy/interpret-ventricular-ectopy.js";
 import { createDefaultConductionInput } from "../data/conduction-interpretation/defaults.js";
 import { interpretConduction } from "../logic/conduction-interpretation/interpret-conduction.js";
+import { createDefaultElectrolyteInput } from "../data/electrolyte-interpretation/defaults.js";
+import { interpretElectrolytes } from "../logic/electrolyte-interpretation/interpret-electrolytes.js";
 
 const good = {allLeads:true,leadLabels:true,waveformsComplete:true,speedVisible:true,gainVisible:true,gridVisible:true,inFocus:true,lowBlur:true,noGlare:true,noShadow:true,lowTilt:true,lowPerspective:true,multipleBeats:true,privacyChecked:true};
 test("all quality checks pass",()=>assert.equal(evaluateQuality(good).grade,"A"));
@@ -376,3 +378,16 @@ test("brady: physician correction 2 to 1 to complete recalculates plan",()=>{con
 test("brady: plan has no duplicates",()=>{const r=interpretBradyarrhythmia(brady({ventricularRateBpm:40,qtMarkedProlongation:true}));assert.equal(r.additionalChecks.length,new Set(r.additionalChecks).size)});
 test("brady: known reversible factor is not duplicated in missing checks",()=>{const r=interpretBradyarrhythmia(brady({ventricularRateBpm:45,betaBlocker:true}));assert.equal(r.possibleFactors.filter(x=>x.category==="drug").length,1)});
 test("brady: mobile flow and detail cards stack",()=>{const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");assert.match(css,/@media\(max-width:760px\).*brady-flow.*grid-template-columns:1fr/s)});
+
+const electrolyte=(patch={})=>Object.assign(createDefaultElectrolyteInput(),patch);
+test("electrolyte: hyperkalemia pattern is suspicious",()=>{const r=interpretElectrolytes(electrolyte({peakedT:true,pWaveAbsent:true,wideQrs:true}));assert.equal(r.assessments.hyperkalemia.level,"suspicious");assert.equal(r.urgency,"emergency")});
+test("electrolyte: hypokalemia pattern is suspicious",()=>assert.equal(interpretElectrolytes(electrolyte({flattenedT:true,prominentU:true,quProlongation:true})).assessments.hypokalemia.level,"suspicious"));
+test("electrolyte: hypercalcemia ECG pattern is suspicious",()=>assert.equal(interpretElectrolytes(electrolyte({qtShort:true,stShort:true,qAtcShort:true})).assessments.hypercalcemia.level,"suspicious"));
+test("electrolyte: hypocalcemia ECG pattern is possible",()=>assert.equal(interpretElectrolytes(electrolyte({qtProlonged:true,stProlonged:true})).assessments.hypocalcemia.level,"possible"));
+test("electrolyte: hypomagnesemia with TdP is red flag",()=>{const r=interpretElectrolytes(electrolyte({qtProlonged:true,tdp:true}));assert.equal(r.assessments.hypomagnesemia.level,"suspicious");assert.ok(r.redFlags.some(x=>x.includes("低Mg")))});
+test("electrolyte: composite abnormality retains multiple assessments",()=>{const r=interpretElectrolytes(electrolyte({prominentU:true,qtProlonged:true,pvc:true}));assert.equal(r.assessments.hypokalemia.level,"possible");assert.equal(r.assessments.hypomagnesemia.level,"possible")});
+test("electrolyte: inadequate image is indeterminate",()=>assert.ok(Object.values(interpretElectrolytes(electrolyte({imageQualityAdequate:false})).assessments).every(x=>x.level==="indeterminate")));
+test("electrolyte: physician override recalculates red flag and plan",()=>{const x=electrolyte({wideQrs:true});x.clinicianOverrides.hyperkalemia="suspicious";const r=interpretElectrolytes(x);assert.equal(r.urgency,"emergency");assert.ok(r.additionalChecks.includes("イオン化Ca"))});
+test("electrolyte: normal ECG does not exclude hyperkalemia pearl",()=>assert.match(interpretElectrolytes(electrolyte()).assessments.hyperkalemia.clinicalPearl,/否定できません/));
+test("electrolyte: cause-search features are explicitly excluded",()=>assert.ok(interpretElectrolytes(electrolyte()).limitations.some(x=>x.includes("原因検索"))));
+test("electrolyte: mobile cards stack",()=>{const ui=readFileSync(new URL("../components/ecg/ElectrolyteModule.tsx",import.meta.url),"utf8"),css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");assert.match(ui,/医師修正で再計算/);assert.match(css,/@media\(max-width:720px\).*electrolyte-grid.*grid-template-columns:1fr/s)});

@@ -7,6 +7,7 @@ import { NavigatorRobot, STEP_NAVIGATOR_COMMENTS, type NavigatorState } from "@/
 import { LeadPlacementGuide } from "@/components/ecg/LeadPlacementGuide";
 import { TachyarrhythmiaModule } from "@/components/ecg/TachyarrhythmiaModule";
 import { BradyarrhythmiaModule } from "@/components/ecg/BradyarrhythmiaModule";
+import { ElectrolyteModule } from "@/components/ecg/ElectrolyteModule";
 import { InterpretationNavigator } from "@/components/interpretation/InterpretationNavigator";
 import { InterpretationSummary } from "@/components/interpretation/InterpretationSummary";
 import { interpretationItems } from "@/data/interpretation/items";
@@ -32,6 +33,9 @@ import { interpretConduction } from "@/logic/conduction-interpretation/interpret
 import type { BradyInput } from "@/types/bradyarrhythmia";
 import { createDefaultBradyInput } from "@/data/bradyarrhythmia/defaults.js";
 import { interpretBradyarrhythmia } from "@/logic/bradyarrhythmia/interpret-brady.js";
+import type { ElectrolyteInput } from "@/types/electrolyte-interpretation";
+import { createDefaultElectrolyteInput } from "@/data/electrolyte-interpretation/defaults.js";
+import { interpretElectrolytes } from "@/logic/electrolyte-interpretation/interpret-electrolytes.js";
 
 const qualityItems = [
   ["allLeads","12誘導がすべて写っている"],["leadLabels","誘導名が読める"],["waveformsComplete","波形が途中で切れていない"],
@@ -74,18 +78,24 @@ export function EcgWorkspace() {
   const [bradyInput,setBradyInput]=useState<BradyInput>(()=>createDefaultBradyInput());
   const integratedBradyInput=useMemo<BradyInput>(()=>({...bradyInput,ventricularRateBpm:confirmedHeartRate,qrsWidthMs:confirmedQrs,bundleBranchBlock:conductionResult.stTInterpretationLimited,qtMarkedProlongation:qtResult.classification==="marked_prolongation",rOnTCandidate:pvcResult.rOnTCandidate===true}),[bradyInput,confirmedHeartRate,confirmedQrs,conductionResult.stTInterpretationLimited,qtResult.classification,pvcResult.rOnTCandidate]);
   const bradyResult=useMemo(()=>interpretBradyarrhythmia(integratedBradyInput),[integratedBradyInput]);
+  const [electrolyteInput,setElectrolyteInput]=useState<ElectrolyteInput>(()=>createDefaultElectrolyteInput());
+  const integratedElectrolyteInput=useMemo<ElectrolyteInput>(()=>({...electrolyteInput,peakedT:electrolyteInput.peakedT||tWaveResult.overallClassification==="peaked_t_wave",flattenedT:electrolyteInput.flattenedT||tWaveResult.overallClassification==="flattened_t_wave",invertedT:electrolyteInput.invertedT||tWaveResult.overallClassification==="t_wave_inversion",stDepression:electrolyteInput.stDepression||integratedStInput.leadMeasurements.some(x=>x.direction==="depression"),wideQrs:electrolyteInput.wideQrs||conductionResult.wideQrs===true,bradycardia:electrolyteInput.bradycardia||bradyResult.classification!=="no_bradycardia"&&bradyResult.classification!=="indeterminate",qtShort:electrolyteInput.qtShort||qtResult.classification==="short",qtProlonged:electrolyteInput.qtProlonged||["borderline_prolonged","prolonged","marked_prolongation"].includes(qtResult.classification),pvc:electrolyteInput.pvc||pvcResult.pvcPresent===true,frequentPvc:electrolyteInput.frequentPvc||pvcResult.overallClassification==="frequent_pvc"||pvcResult.repetitiveEctopy===true,rOnT:electrolyteInput.rOnT||pvcResult.rOnTCandidate===true}),[electrolyteInput,tWaveResult.overallClassification,integratedStInput.leadMeasurements,conductionResult.wideQrs,bradyResult.classification,qtResult.classification,pvcResult]);
+  const electrolyteResult=useMemo(()=>interpretElectrolytes(integratedElectrolyteInput),[integratedElectrolyteInput]);
   const interpretedItems=useMemo(()=>systematicItems.map((item)=>item.id==="st-change"?{...item,aiValue:stResult.overallClassification,clinicianValue:item.status==="accepted"?null:stResult.overallClassification,abnormal:stResult.overallClassification==="no_significant_change"?false:stResult.overallClassification==="indeterminate"?null:true,urgency:stResult.urgency,meaning:stResult.contiguousLeadGroups.length?stResult.contiguousLeadGroups:["誘導別ST計測を臨床背景と併せて評価します。"],possibleFactors:stResult.possibleFactors,mustNotMiss:stResult.mustNotMiss,additionalChecks:stResult.additionalChecks,nextActions:stResult.nextActions,limitations:stResult.limitations,sources:stResult.sources}:item.id==="t-wave"?{...item,aiValue:tWaveResult.overallClassification,clinicianValue:item.status==="accepted"?null:tWaveResult.overallClassification,abnormal:tWaveResult.overallClassification==="normal"?false:tWaveResult.overallClassification==="indeterminate"?null:true,urgency:tWaveResult.urgency,meaning:[...tWaveResult.affectedLeadGroups,...tWaveResult.warnings],possibleFactors:tWaveResult.possibleFactors,mustNotMiss:tWaveResult.mustNotMiss,additionalChecks:tWaveResult.additionalChecks,nextActions:tWaveResult.nextActions,limitations:tWaveResult.limitations,sources:tWaveResult.sources}:item.id==="qt-qtc"?{...item,aiValue:`QTc ${qtResult.qtcMs??"判定不能"} ms (${qtInput.formula})`,clinicianValue:item.status==="accepted"?null:qtResult.qtcMs,abnormal:qtResult.classification==="normal"?false:qtResult.classification==="indeterminate"?null:true,urgency:qtResult.urgency,meaning:[qtResult.classification,...qtResult.warnings],possibleFactors:qtResult.possibleFactors,mustNotMiss:qtResult.mustNotMiss,additionalChecks:qtResult.additionalChecks,nextActions:qtResult.nextActions,limitations:qtResult.limitations,sources:qtResult.sources}:item.id==="ventricular-ectopy"?{...item,aiValue:pvcResult.overallClassification,clinicianValue:item.status==="accepted"?null:pvcResult.overallClassification,abnormal:pvcResult.pvcPresent,urgency:pvcResult.urgency,meaning:pvcResult.warnings,possibleFactors:pvcResult.possibleFactors,mustNotMiss:pvcResult.mustNotMiss,additionalChecks:pvcResult.additionalChecks,nextActions:pvcResult.nextActions,limitations:pvcResult.limitations,sources:pvcResult.sources}:item),[systematicItems,stResult,tWaveResult,qtResult,qtInput.formula,pvcResult]);
   const qualityResult=useMemo(()=>evaluateQuality(quality),[quality]);
   const bradyIntegratedItems=useMemo(()=>interpretedItems.map((item)=>item.id!=="rhythm"?item:{...item,aiValue:bradyResult.classification,clinicianValue:item.status==="accepted"?null:bradyResult.classification,abnormal:bradyResult.classification==="no_bradycardia"?false:bradyResult.classification==="indeterminate"?null:true,urgency:bradyResult.urgency,meaning:[...bradyResult.diagnosticReasoning,...bradyResult.warnings],possibleFactors:bradyResult.possibleFactors,mustNotMiss:bradyResult.mustNotMiss,additionalChecks:bradyResult.additionalChecks,nextActions:bradyResult.nextActions,limitations:bradyResult.limitations,sources:bradyResult.sources}),[interpretedItems,bradyResult]);
   const conductionIntegratedItems=useMemo(()=>bradyIntegratedItems.map((item)=>item.id!=="qrs-morphology"?item:{...item,aiValue:conductionResult.classification,clinicianValue:item.status==="accepted"?null:conductionResult.classification,abnormal:conductionResult.classification==="normal_qrs"?false:conductionResult.classification==="indeterminate"?null:true,urgency:conductionResult.urgency,meaning:[...conductionResult.clinicalPearls,...conductionResult.warnings],possibleFactors:conductionResult.possibleFactors,mustNotMiss:conductionResult.mustNotMiss,additionalChecks:conductionResult.additionalChecks,nextActions:conductionResult.nextActions,limitations:conductionResult.limitations,sources:conductionResult.sources}),[bradyIntegratedItems,conductionResult]);
   const builtSystematicItems=useMemo(()=>buildInterpretation(conductionIntegratedItems),[conductionIntegratedItems]);
-  const interpretationPlan=useMemo(()=>buildTodaysPlan(builtSystematicItems),[builtSystematicItems]);
-  const interpretationRedFlags=useMemo(()=>collectRedFlagCategories(builtSystematicItems),[builtSystematicItems]);
+  const electrolytePlanItem=useMemo<EcgInterpretationItem>(()=>({id:"electrolyte-module",title:"電解質ECG",aiValue:"電解質ECG評価",clinicianValue:null,status:"accepted",abnormal:Object.values(electrolyteResult.assessments).some(x=>x.level==="suspicious"||x.level==="possible"),confidence:null,urgency:electrolyteResult.urgency,meaning:electrolyteResult.redFlags,possibleFactors:electrolyteResult.possibleFactors,mustNotMiss:electrolyteResult.mustNotMiss,additionalChecks:electrolyteResult.additionalChecks,nextActions:electrolyteResult.nextActions,limitations:electrolyteResult.limitations,sources:electrolyteResult.sources}),[electrolyteResult]);
+  const planItems=useMemo(()=>[...builtSystematicItems,electrolytePlanItem],[builtSystematicItems,electrolytePlanItem]);
+  const interpretationPlan=useMemo(()=>buildTodaysPlan(planItems),[planItems]);
+  const interpretationRedFlags=useMemo(()=>collectRedFlagCategories(planItems),[planItems]);
   const hasClinicianEdits=Object.values(review).some(item=>item.status!=="accepted");
   const hasBradyRedFlag=bradyResult.redFlags.length>0;
-  const navigatorState:NavigatorState=hasPlacementWarning||hasTachyRedFlag||hasBradyRedFlag?"warning":file?"analyzing":hasClinicianEdits?"complete":"default";
+  const hasElectrolyteRedFlag=electrolyteResult.redFlags.length>0;
+  const navigatorState:NavigatorState=hasPlacementWarning||hasTachyRedFlag||hasBradyRedFlag||hasElectrolyteRedFlag?"warning":file?"analyzing":hasClinicianEdits?"complete":"default";
   const tachyActive=confirmedHeartRate!=null&&confirmedHeartRate>=100;
-  const navigatorComment=hasPlacementWarning||hasTachyRedFlag||hasBradyRedFlag?"緊急対応を優先してください":tachyActive?"QRS幅と規則性から整理します":hasClinicianEdits?"修正後の所見で再計算しました":navigatorState==="analyzing"?STEP_NAVIGATOR_COMMENTS[1]:STEP_NAVIGATOR_COMMENTS[0];
+  const navigatorComment=hasPlacementWarning||hasTachyRedFlag||hasBradyRedFlag||hasElectrolyteRedFlag?"緊急対応を優先してください":tachyActive?"QRS幅と規則性から整理します":hasClinicianEdits?"修正後の所見で再計算しました":navigatorState==="analyzing"?STEP_NAVIGATOR_COMMENTS[1]:STEP_NAVIGATOR_COMMENTS[0];
 
   useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview)},[preview]);
   function chooseFile(next:File|null){
@@ -134,6 +144,7 @@ export function EcgWorkspace() {
       </section>
       <TachyarrhythmiaModule heartRate={confirmedHeartRate} qrsMs={confirmedQrs} regularity={confirmedRegularity} onRedFlagChange={setHasTachyRedFlag}/>
       <BradyarrhythmiaModule input={integratedBradyInput} result={bradyResult} onChange={setBradyInput}/>
+      <ElectrolyteModule input={integratedElectrolyteInput} result={electrolyteResult} onChange={setElectrolyteInput}/>
       <section className="card systematic-shell" id="section-6">
         <div className="cardhead"><div><div className="eyebrow">Step 4</div><h3>系統的読影</h3><p className="muted systematic-intro">18項目を順に確認します。正常所見はコンパクト表示、異常・判定不能は詳細を展開します。</p></div><span className="badge">共通基盤</span></div>
         <InterpretationSummary items={builtSystematicItems}/>
