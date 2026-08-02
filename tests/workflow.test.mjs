@@ -64,7 +64,7 @@ test("V1 through V3 ST depression suggests posterior leads",()=>{
 test("suspected right coronary occlusion suggests right-sided leads",()=>assert.equal(suggestAdditionalLeads({...noAdditionalSignals,suspectedRVOcclusion:true})[0].type,"right-sided"));
 test("suspected posterior occlusion suggests posterior leads",()=>assert.equal(suggestAdditionalLeads({...noAdditionalSignals,suspectedPosteriorOcclusion:true})[0].type,"posterior"));
 test("no findings does not routinely suggest additional leads",()=>assert.deepEqual(suggestAdditionalLeads(noAdditionalSignals),[]));
-const stableTachy={heartRate:150,qrsMs:90,regularity:"regular",pWave:"unknown",pulsePresent:true,systolicBp:120,hypotension:false,alteredMentalStatus:false,shockSigns:false,ischemicChestPain:false,acuteHeartFailure:false,pulmonaryEdema:false,severeRespiratoryFailure:false,syncope:false,markedPresyncope:false,organHypoperfusion:false,wpwHistory:false,qrsMorphologyVariable:false,priorMi:false,structuralHeartDisease:false,sinusFeatures:false,qtcMs:null,potassium:null,calcium:null,magnesium:null};
+const stableTachy={heartRate:150,qrsMs:90,regularity:"regular",pWave:"unknown",avRelationship:"unknown",deltaWave:false,shortPr:false,fibrillatoryWaves:false,flutterWaves:false,flutterConduction:"unknown",pulsePresent:true,systolicBp:120,hypotension:false,alteredMentalStatus:false,shockSigns:false,ischemicChestPain:false,acuteHeartFailure:false,pulmonaryEdema:false,severeRespiratoryFailure:false,syncope:false,markedPresyncope:false,organHypoperfusion:false,wpwHistory:false,qrsMorphologyVariable:false,priorMi:false,structuralHeartDisease:false,sinusFeatures:false,qtcMs:null,potassium:null,calcium:null,magnesium:null};
 test("stable narrow regular tachycardia is classified",()=>assert.equal(classifyTachyarrhythmia(stableTachy).classification,"narrow regular"));
 test("narrow irregular lists AF flutter and MAT",()=>{
   const result=classifyTachyarrhythmia({...stableTachy,regularity:"irregular"});
@@ -75,7 +75,7 @@ test("narrow irregular lists AF flutter and MAT",()=>{
 test("wide regular prioritizes VT",()=>assert.match(classifyTachyarrhythmia({...stableTachy,qrsMs:140}).priority,/心室頻拍/));
 test("wide irregular is a red flag",()=>assert.ok(classifyTachyarrhythmia({...stableTachy,qrsMs:140,regularity:"irregular"}).redFlags.includes("wide irregular tachycardia")));
 test("tachycardia with hypotension is unstable",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,hypotension:true}).hemodynamics.status,"unstable"));
-test("altered mental status suggests synchronized treatment path",()=>assert.match(classifyTachyarrhythmia({...stableTachy,alteredMentalStatus:true}).hemodynamics.message,/同期/));
+test("altered mental status triggers emergency pathway without energy output",()=>{const r=classifyTachyarrhythmia({...stableTachy,alteredMentalStatus:true});assert.equal(r.hemodynamics.status,"unstable");assert.doesNotMatch(r.hemodynamics.message,/J|ジュール|用量/)});
 test("pulseless tachycardia branches to cardiac arrest",()=>{
   const result=classifyTachyarrhythmia({...stableTachy,pulsePresent:false});
   assert.equal(result.hemodynamics.status,"cardiac-arrest");
@@ -107,6 +107,16 @@ test("long QT wide irregular rhythm includes TdP",()=>{
   const result=classifyTachyarrhythmia({...stableTachy,qrsMs:140,regularity:"irregular",qtcMs:520});
   assert.equal(result.candidates[0],"QT延長に伴うTdP");
 });
+test("tachy algorithm preserves QRS regularity P wave AV sequence",()=>{const r=classifyTachyarrhythmia(stableTachy);assert.deepEqual(r.diagnosticReasoning.slice(0,4).map(x=>x.slice(0,1)),["①","②","③","④"])});
+test("tachy identifies sinus tachycardia reasoning",()=>{const r=classifyTachyarrhythmia({...stableTachy,pWave:"present",sinusFeatures:true});assert.match(r.priority,/洞性頻脈/)});
+test("tachy identifies AF from irregular RR absent P and fibrillatory waves",()=>{const r=classifyTachyarrhythmia({...stableTachy,regularity:"irregular",pWave:"absent",fibrillatoryWaves:true});assert.match(r.priority,/心房細動候補/)});
+test("tachy identifies flutter and conduction ratio",()=>{const r=classifyTachyarrhythmia({...stableTachy,flutterWaves:true,flutterConduction:"2:1"});assert.match(r.priority,/心房粗動候補（2:1伝導）/)});
+test("tachy identifies AVNRT or AVRT from retrograde P",()=>{const r=classifyTachyarrhythmia({...stableTachy,pWave:"retrograde"});assert.match(r.priority,/AVNRT／AVRT/)});
+test("tachy identifies atrial tachycardia candidate",()=>{const r=classifyTachyarrhythmia({...stableTachy,pWave:"present"});assert.match(r.priority,/心房頻拍候補/)});
+test("tachy wide with AV dissociation supports VT candidate",()=>{const r=classifyTachyarrhythmia({...stableTachy,qrsMs:140,avRelationship:"av-dissociation"});assert.match(r.priority,/VT候補/);assert.ok(r.redFlags.some(x=>x.includes("房室解離")))});
+test("tachy pre-excited AF from delta wave lists AV nodal blocker cautions",()=>{const r=classifyTachyarrhythmia({...stableTachy,qrsMs:140,regularity:"irregular",deltaWave:true});assert.equal(r.preexcitedAf,true);for(const drug of ["ベラパミル","ジゴキシン","β遮断薬"])assert.ok(r.contraindicatedDrugCandidates.includes(drug))});
+test("tachy indeterminate QRS is explicit",()=>{const r=classifyTachyarrhythmia({...stableTachy,qrsMs:null});assert.equal(r.qrsClass,"indeterminate")});
+test("tachy plan contains requested bedside checks",()=>{const r=classifyTachyarrhythmia(stableTachy);for(const item of ["症状・血圧・意識・SpO₂を再評価","K・Ca・Mgを確認","12誘導心電図を再検","心エコーと前回心電図を確認"])assert.ok(r.plan.includes(item))});
 test("navigator reference image from user exists",()=>assert.equal(existsSync(new URL("../public/images/robot/navigator-reference.png",import.meta.url)),true));
 test("all navigator state images exist",()=>{
   for(const state of ["default","analyzing","warning","complete"]){

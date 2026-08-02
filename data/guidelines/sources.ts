@@ -49,4 +49,12 @@ export const evidenceRegistry: EvidenceSource[] = [
     url:"https://www.heart.org/-/media/CPR-Files/CPR-Guidelines-Files/2025-Algorithms/Algorithm-ACLS-Tachycardia-250514.pdf",
     evidenceType:"guideline",
   },
+  {
+    sourceOrganization:"ESC",
+    sourceTitle:"2019 ESC Guidelines for the management of patients with supraventricular tachycardia",
+    publicationYear:2019,
+    section:"Narrow and wide QRS tachycardia; pre-excited atrial fibrillation",
+    url:"https://www.escardio.org/Guidelines/Clinical-Practice-Guidelines/Supraventricular-Tachycardia",
+    evidenceType:"guideline",
+  },
 ];
