@@ -10,6 +10,8 @@ import type { QtInterpretation, QtInterpretationInput } from "@/types/qt-interpr
 import { QtModule } from "./QtModule";
 import type { VentricularEctopyInput, VentricularEctopyInterpretation } from "@/types/ventricular-ectopy";
 import { VentricularEctopyModule } from "./VentricularEctopyModule";
+import type { ConductionInput, ConductionInterpretation } from "@/types/conduction-interpretation";
+import { ConductionModule } from "./ConductionModule";
 
 const statusLabels: Record<InterpretationStatus, string> = {
   accepted: "正しい",
@@ -21,7 +23,7 @@ const statusLabels: Record<InterpretationStatus, string> = {
 export function InterpretationDetailCard({
   item,
   onChange,
-  stInput, stResult, onStChange, tWaveInput, tWaveResult, onTWaveChange, qtInput, qtResult, onQtChange, pvcInput, pvcResult, onPvcChange,
+  stInput, stResult, onStChange, tWaveInput, tWaveResult, onTWaveChange, qtInput, qtResult, onQtChange, pvcInput, pvcResult, onPvcChange, conductionInput, conductionResult, onConductionChange,
 }: {
   item: EcgInterpretationItem;
   onChange: (next: EcgInterpretationItem) => void;
@@ -37,6 +39,9 @@ export function InterpretationDetailCard({
   pvcInput?: VentricularEctopyInput;
   pvcResult?: VentricularEctopyInterpretation;
   onPvcChange: (input: VentricularEctopyInput) => void;
+  conductionInput?: ConductionInput;
+  conductionResult?: ConductionInterpretation;
+  onConductionChange: (input: ConductionInput) => void;
 }) {
   return <div className="interpretation-detail">
     <div className="interpretation-values">
@@ -51,6 +56,7 @@ export function InterpretationDetailCard({
     {tWaveInput&&tWaveResult&&<TWaveModule input={tWaveInput} result={tWaveResult} onChange={onTWaveChange}/>}
     {qtInput&&qtResult&&<QtModule input={qtInput} result={qtResult} onChange={onQtChange}/>}
     {pvcInput&&pvcResult&&<VentricularEctopyModule input={pvcInput} result={pvcResult} onChange={onPvcChange}/>}
+    {conductionInput&&conductionResult&&<ConductionModule input={conductionInput} result={conductionResult} onChange={onConductionChange}/>}
 
     <DetailSection title="所見の意味" items={item.meaning} />
     <section><h4>考えられる要因</h4><FindingFactors item={item}/></section>

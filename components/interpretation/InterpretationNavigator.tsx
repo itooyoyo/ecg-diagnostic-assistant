@@ -5,11 +5,12 @@ import type { StInterpretation, StInterpretationInput } from "@/types/st-interpr
 import type { TWaveInterpretation, TWaveInterpretationInput } from "@/types/t-wave-interpretation";
 import type { QtInterpretation, QtInterpretationInput } from "@/types/qt-interpretation";
 import type { VentricularEctopyInput, VentricularEctopyInterpretation } from "@/types/ventricular-ectopy";
+import type { ConductionInput, ConductionInterpretation } from "@/types/conduction-interpretation";
 
 export function InterpretationNavigator({
   items,
   onChange,
-  stInput, stResult, onStChange, tWaveInput, tWaveResult, onTWaveChange, qtInput, qtResult, onQtChange, pvcInput, pvcResult, onPvcChange,
+  stInput, stResult, onStChange, tWaveInput, tWaveResult, onTWaveChange, qtInput, qtResult, onQtChange, pvcInput, pvcResult, onPvcChange, conductionInput, conductionResult, onConductionChange,
 }: {
   items: EcgInterpretationItem[];
   onChange: (item: EcgInterpretationItem) => void;
@@ -25,6 +26,9 @@ export function InterpretationNavigator({
   pvcInput: VentricularEctopyInput;
   pvcResult: VentricularEctopyInterpretation;
   onPvcChange: (input: VentricularEctopyInput) => void;
+  conductionInput: ConductionInput;
+  conductionResult: ConductionInterpretation;
+  onConductionChange: (input: ConductionInput) => void;
 }) {
   return <div className="interpretation-navigator">
     {items.map((item, index) => {
@@ -36,7 +40,7 @@ export function InterpretationNavigator({
           <span className="interpretation-state">{item.status === "indeterminate" ? "判定不能" : item.abnormal ? "異常" : "正常"}</span>
           <span className="interpretation-urgency">{urgencyLabel(item.urgency)}</span>
         </summary>
-        <InterpretationDetailCard item={item} onChange={onChange} stInput={item.id==="st-change"?stInput:undefined} stResult={item.id==="st-change"?stResult:undefined} onStChange={onStChange} tWaveInput={item.id==="t-wave"?tWaveInput:undefined} tWaveResult={item.id==="t-wave"?tWaveResult:undefined} onTWaveChange={onTWaveChange} qtInput={item.id==="qt-qtc"?qtInput:undefined} qtResult={item.id==="qt-qtc"?qtResult:undefined} onQtChange={onQtChange} pvcInput={item.id==="ventricular-ectopy"?pvcInput:undefined} pvcResult={item.id==="ventricular-ectopy"?pvcResult:undefined} onPvcChange={onPvcChange}/>
+        <InterpretationDetailCard item={item} onChange={onChange} stInput={item.id==="st-change"?stInput:undefined} stResult={item.id==="st-change"?stResult:undefined} onStChange={onStChange} tWaveInput={item.id==="t-wave"?tWaveInput:undefined} tWaveResult={item.id==="t-wave"?tWaveResult:undefined} onTWaveChange={onTWaveChange} qtInput={item.id==="qt-qtc"?qtInput:undefined} qtResult={item.id==="qt-qtc"?qtResult:undefined} onQtChange={onQtChange} pvcInput={item.id==="ventricular-ectopy"?pvcInput:undefined} pvcResult={item.id==="ventricular-ectopy"?pvcResult:undefined} onPvcChange={onPvcChange} conductionInput={item.id==="qrs-morphology"?conductionInput:undefined} conductionResult={item.id==="qrs-morphology"?conductionResult:undefined} onConductionChange={onConductionChange}/>
       </details>;
     })}
   </div>;
