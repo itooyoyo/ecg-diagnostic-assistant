@@ -6,6 +6,7 @@ import { evaluateQuality } from "@/logic/quality/quality.js";
 import { NavigatorRobot, STEP_NAVIGATOR_COMMENTS, type NavigatorState } from "@/components/character/NavigatorRobot";
 import { LeadPlacementGuide } from "@/components/ecg/LeadPlacementGuide";
 import { TachyarrhythmiaModule } from "@/components/ecg/TachyarrhythmiaModule";
+import { BradyarrhythmiaModule } from "@/components/ecg/BradyarrhythmiaModule";
 import { InterpretationNavigator } from "@/components/interpretation/InterpretationNavigator";
 import { InterpretationSummary } from "@/components/interpretation/InterpretationSummary";
 import { interpretationItems } from "@/data/interpretation/items";
@@ -28,6 +29,9 @@ import { interpretVentricularEctopy } from "@/logic/ventricular-ectopy/interpret
 import type { ConductionInput } from "@/types/conduction-interpretation";
 import { createDefaultConductionInput } from "@/data/conduction-interpretation/defaults.js";
 import { interpretConduction } from "@/logic/conduction-interpretation/interpret-conduction.js";
+import type { BradyInput } from "@/types/bradyarrhythmia";
+import { createDefaultBradyInput } from "@/data/bradyarrhythmia/defaults.js";
+import { interpretBradyarrhythmia } from "@/logic/bradyarrhythmia/interpret-brady.js";
 
 const qualityItems = [
   ["allLeads","12誘導がすべて写っている"],["leadLabels","誘導名が読める"],["waveformsComplete","波形が途中で切れていない"],
@@ -50,6 +54,10 @@ export function EcgWorkspace() {
   const [preview,setPreview]=useState("");
   const [fileError,setFileError]=useState("");
   const [review,setReview]=useState<Record<string,{status:string,value:string}>>(()=>Object.fromEntries(findings.map(f=>[f.key,{status:"accepted",value:f.ai}])));
+  const confirmedValue=(key:string,aiValue:string)=>review[key]?.status==="accepted"?aiValue:review[key]?.status==="edited"?review[key].value:null;
+  const confirmedHeartRate=numberFromFinding(confirmedValue("heartRate","72 bpm"));
+  const confirmedQrs=numberFromFinding(confirmedValue("qrs","92 ms"));
+  const confirmedRegularity:Regularity=confirmedValue("regularity","整")==="整"?"regular":confirmedValue("regularity","整")==="不整"?"irregular":"unknown";
   const [systematicItems,setSystematicItems]=useState<EcgInterpretationItem[]>(()=>interpretationItems);
   const [stInput,setStInput]=useState<StInterpretationInput>(()=>createDefaultStInput());
   const [conductionInput,setConductionInput]=useState<ConductionInput>(()=>createDefaultConductionInput());
@@ -63,20 +71,21 @@ export function EcgWorkspace() {
   const tWaveResult=useMemo(()=>interpretTWave(integratedTWaveInput,{stResult}),[integratedTWaveInput,stResult]);
   const [pvcInput,setPvcInput]=useState<VentricularEctopyInput>(()=>createDefaultVentricularEctopyInput());
   const pvcResult=useMemo(()=>interpretVentricularEctopy(pvcInput,{stResult,tWaveResult,qtResult}),[pvcInput,stResult,tWaveResult,qtResult]);
+  const [bradyInput,setBradyInput]=useState<BradyInput>(()=>createDefaultBradyInput());
+  const integratedBradyInput=useMemo<BradyInput>(()=>({...bradyInput,ventricularRateBpm:confirmedHeartRate,qrsWidthMs:confirmedQrs,bundleBranchBlock:conductionResult.stTInterpretationLimited,qtMarkedProlongation:qtResult.classification==="marked_prolongation",rOnTCandidate:pvcResult.rOnTCandidate===true}),[bradyInput,confirmedHeartRate,confirmedQrs,conductionResult.stTInterpretationLimited,qtResult.classification,pvcResult.rOnTCandidate]);
+  const bradyResult=useMemo(()=>interpretBradyarrhythmia(integratedBradyInput),[integratedBradyInput]);
   const interpretedItems=useMemo(()=>systematicItems.map((item)=>item.id==="st-change"?{...item,aiValue:stResult.overallClassification,clinicianValue:item.status==="accepted"?null:stResult.overallClassification,abnormal:stResult.overallClassification==="no_significant_change"?false:stResult.overallClassification==="indeterminate"?null:true,urgency:stResult.urgency,meaning:stResult.contiguousLeadGroups.length?stResult.contiguousLeadGroups:["誘導別ST計測を臨床背景と併せて評価します。"],possibleFactors:stResult.possibleFactors,mustNotMiss:stResult.mustNotMiss,additionalChecks:stResult.additionalChecks,nextActions:stResult.nextActions,limitations:stResult.limitations,sources:stResult.sources}:item.id==="t-wave"?{...item,aiValue:tWaveResult.overallClassification,clinicianValue:item.status==="accepted"?null:tWaveResult.overallClassification,abnormal:tWaveResult.overallClassification==="normal"?false:tWaveResult.overallClassification==="indeterminate"?null:true,urgency:tWaveResult.urgency,meaning:[...tWaveResult.affectedLeadGroups,...tWaveResult.warnings],possibleFactors:tWaveResult.possibleFactors,mustNotMiss:tWaveResult.mustNotMiss,additionalChecks:tWaveResult.additionalChecks,nextActions:tWaveResult.nextActions,limitations:tWaveResult.limitations,sources:tWaveResult.sources}:item.id==="qt-qtc"?{...item,aiValue:`QTc ${qtResult.qtcMs??"判定不能"} ms (${qtInput.formula})`,clinicianValue:item.status==="accepted"?null:qtResult.qtcMs,abnormal:qtResult.classification==="normal"?false:qtResult.classification==="indeterminate"?null:true,urgency:qtResult.urgency,meaning:[qtResult.classification,...qtResult.warnings],possibleFactors:qtResult.possibleFactors,mustNotMiss:qtResult.mustNotMiss,additionalChecks:qtResult.additionalChecks,nextActions:qtResult.nextActions,limitations:qtResult.limitations,sources:qtResult.sources}:item.id==="ventricular-ectopy"?{...item,aiValue:pvcResult.overallClassification,clinicianValue:item.status==="accepted"?null:pvcResult.overallClassification,abnormal:pvcResult.pvcPresent,urgency:pvcResult.urgency,meaning:pvcResult.warnings,possibleFactors:pvcResult.possibleFactors,mustNotMiss:pvcResult.mustNotMiss,additionalChecks:pvcResult.additionalChecks,nextActions:pvcResult.nextActions,limitations:pvcResult.limitations,sources:pvcResult.sources}:item),[systematicItems,stResult,tWaveResult,qtResult,qtInput.formula,pvcResult]);
   const qualityResult=useMemo(()=>evaluateQuality(quality),[quality]);
-  const conductionIntegratedItems=useMemo(()=>interpretedItems.map((item)=>item.id!=="qrs-morphology"?item:{...item,aiValue:conductionResult.classification,clinicianValue:item.status==="accepted"?null:conductionResult.classification,abnormal:conductionResult.classification==="normal_qrs"?false:conductionResult.classification==="indeterminate"?null:true,urgency:conductionResult.urgency,meaning:[...conductionResult.clinicalPearls,...conductionResult.warnings],possibleFactors:conductionResult.possibleFactors,mustNotMiss:conductionResult.mustNotMiss,additionalChecks:conductionResult.additionalChecks,nextActions:conductionResult.nextActions,limitations:conductionResult.limitations,sources:conductionResult.sources}),[interpretedItems,conductionResult]);
+  const bradyIntegratedItems=useMemo(()=>interpretedItems.map((item)=>item.id!=="rhythm"?item:{...item,aiValue:bradyResult.classification,clinicianValue:item.status==="accepted"?null:bradyResult.classification,abnormal:bradyResult.classification==="no_bradycardia"?false:bradyResult.classification==="indeterminate"?null:true,urgency:bradyResult.urgency,meaning:[...bradyResult.diagnosticReasoning,...bradyResult.warnings],possibleFactors:bradyResult.possibleFactors,mustNotMiss:bradyResult.mustNotMiss,additionalChecks:bradyResult.additionalChecks,nextActions:bradyResult.nextActions,limitations:bradyResult.limitations,sources:bradyResult.sources}),[interpretedItems,bradyResult]);
+  const conductionIntegratedItems=useMemo(()=>bradyIntegratedItems.map((item)=>item.id!=="qrs-morphology"?item:{...item,aiValue:conductionResult.classification,clinicianValue:item.status==="accepted"?null:conductionResult.classification,abnormal:conductionResult.classification==="normal_qrs"?false:conductionResult.classification==="indeterminate"?null:true,urgency:conductionResult.urgency,meaning:[...conductionResult.clinicalPearls,...conductionResult.warnings],possibleFactors:conductionResult.possibleFactors,mustNotMiss:conductionResult.mustNotMiss,additionalChecks:conductionResult.additionalChecks,nextActions:conductionResult.nextActions,limitations:conductionResult.limitations,sources:conductionResult.sources}),[bradyIntegratedItems,conductionResult]);
   const builtSystematicItems=useMemo(()=>buildInterpretation(conductionIntegratedItems),[conductionIntegratedItems]);
   const interpretationPlan=useMemo(()=>buildTodaysPlan(builtSystematicItems),[builtSystematicItems]);
   const interpretationRedFlags=useMemo(()=>collectRedFlagCategories(builtSystematicItems),[builtSystematicItems]);
   const hasClinicianEdits=Object.values(review).some(item=>item.status!=="accepted");
-  const navigatorState:NavigatorState=hasPlacementWarning||hasTachyRedFlag?"warning":file?"analyzing":hasClinicianEdits?"complete":"default";
-  const confirmedValue=(key:string,aiValue:string)=>review[key]?.status==="accepted"?aiValue:review[key]?.status==="edited"?review[key].value:null;
-  const confirmedHeartRate=numberFromFinding(confirmedValue("heartRate","72 bpm"));
-  const confirmedQrs=numberFromFinding(confirmedValue("qrs","92 ms"));
-  const confirmedRegularity:Regularity=confirmedValue("regularity","整")==="整"?"regular":confirmedValue("regularity","整")==="不整"?"irregular":"unknown";
+  const hasBradyRedFlag=bradyResult.redFlags.length>0;
+  const navigatorState:NavigatorState=hasPlacementWarning||hasTachyRedFlag||hasBradyRedFlag?"warning":file?"analyzing":hasClinicianEdits?"complete":"default";
   const tachyActive=confirmedHeartRate!=null&&confirmedHeartRate>=100;
-  const navigatorComment=hasPlacementWarning||hasTachyRedFlag?"緊急対応を優先してください":tachyActive?"QRS幅と規則性から整理します":hasClinicianEdits?"修正後の所見で再計算しました":navigatorState==="analyzing"?STEP_NAVIGATOR_COMMENTS[1]:STEP_NAVIGATOR_COMMENTS[0];
+  const navigatorComment=hasPlacementWarning||hasTachyRedFlag||hasBradyRedFlag?"緊急対応を優先してください":tachyActive?"QRS幅と規則性から整理します":hasClinicianEdits?"修正後の所見で再計算しました":navigatorState==="analyzing"?STEP_NAVIGATOR_COMMENTS[1]:STEP_NAVIGATOR_COMMENTS[0];
 
   useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview)},[preview]);
   function chooseFile(next:File|null){
@@ -124,6 +133,7 @@ export function EcgWorkspace() {
         <div className="result">診断候補・対応は医師確認後の確定所見を使用します。削除・判定不能は正常として扱いません。</div>
       </section>
       <TachyarrhythmiaModule heartRate={confirmedHeartRate} qrsMs={confirmedQrs} regularity={confirmedRegularity} onRedFlagChange={setHasTachyRedFlag}/>
+      <BradyarrhythmiaModule input={integratedBradyInput} result={bradyResult} onChange={setBradyInput}/>
       <section className="card systematic-shell" id="section-6">
         <div className="cardhead"><div><div className="eyebrow">Step 4</div><h3>系統的読影</h3><p className="muted systematic-intro">18項目を順に確認します。正常所見はコンパクト表示、異常・判定不能は詳細を展開します。</p></div><span className="badge">共通基盤</span></div>
         <InterpretationSummary items={builtSystematicItems}/>
