@@ -119,6 +119,31 @@ test("tachy wide with AV dissociation supports VT candidate",()=>{const r=classi
 test("tachy pre-excited AF from delta wave lists AV nodal blocker cautions",()=>{const r=classifyTachyarrhythmia({...stableTachy,qrsMs:140,regularity:"irregular",deltaWave:true});assert.equal(r.preexcitedAf,true);for(const drug of ["ベラパミル","ジゴキシン","β遮断薬"])assert.ok(r.contraindicatedDrugCandidates.includes(drug))});
 test("tachy indeterminate QRS is explicit",()=>{const r=classifyTachyarrhythmia({...stableTachy,qrsMs:null});assert.equal(r.qrsClass,"indeterminate")});
 test("tachy plan contains requested bedside checks",()=>{const r=classifyTachyarrhythmia(stableTachy);for(const item of ["症状・血圧・意識・SpO₂を再評価","K・Ca・Mgを確認","12誘導心電図を再検","心エコーと前回心電図を確認"])assert.ok(r.plan.includes(item))});
+test("tachy no episode remains compact",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,heartRate:80}).active,false));
+test("tachy fever-like sinus context prioritizes cause search without red flag",()=>{const r=classifyTachyarrhythmia({...stableTachy,pWave:"present",sinusFeatures:true});assert.match(r.priority,/原因検索/);assert.equal(r.redFlags.length,0)});
+test("tachy narrow regular unknown P keeps SVT differential",()=>assert.ok(classifyTachyarrhythmia(stableTachy).candidates.includes("AVNRT")));
+test("tachy short RP retrograde P favors AVNRT candidate",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,pWave:"retrograde",shortRp:true}).overallClassification,"avnrt_candidate"));
+test("tachy long RP ectopic P favors atrial tachycardia",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,pWave:"present",longRp:true}).overallClassification,"atrial_tachycardia_candidate"));
+test("tachy regular flutter retains 2 to 1 candidate",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,flutterWaves:true,flutterConduction:"2:1"}).overallClassification,"atrial_flutter_candidate"));
+test("tachy variable flutter retains flutter candidate",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,regularity:"irregular",flutterWaves:true,flutterConduction:"variable"}).overallClassification,"atrial_flutter_candidate"));
+test("tachy frequent PAC does not become AF",()=>assert.notEqual(classifyTachyarrhythmia({...stableTachy,regularity:"irregular",frequentPac:true}).overallClassification,"atrial_fibrillation_candidate"));
+test("tachy multifocal P morphology suggests MAT",()=>assert.match(classifyTachyarrhythmia({...stableTachy,regularity:"irregular",multiplePWaveMorphologies:true}).priority,/多源性/));
+test("tachy delta absent does not remove AVRT from narrow regular candidates",()=>assert.ok(classifyTachyarrhythmia({...stableTachy,pWave:"retrograde",deltaWave:false}).candidates.some(x=>x.includes("AVRT"))));
+test("tachy capture beat supports VT",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,qrsMs:150,captureBeats:true}).overallClassification,"ventricular_tachycardia_candidate"));
+test("tachy fusion beat supports VT",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,qrsMs:150,fusionBeats:true}).overallClassification,"ventricular_tachycardia_candidate"));
+test("tachy existing LBBB keeps other WCT candidate",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,qrsMs:150,existingBundleBranchBlock:true}).overallClassification,"other_wide_complex_tachycardia"));
+test("tachy WPW sinus context alone has no blanket drug warning",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,wpwHistory:true}).contraindicatedDrugCandidates.length,0));
+test("tachy regular narrow AVRT has no preexcited AF warning",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,pWave:"retrograde",longRp:true,wpwHistory:true}).preexcitedAf,false));
+test("tachy preexcited AF warning includes IV amiodarone",()=>assert.ok(classifyTachyarrhythmia({...stableTachy,qrsMs:150,regularity:"irregular",deltaWave:true}).contraindicatedDrugCandidates.includes("静注アミオダロン")));
+test("tachy polymorphic wide with long QT favors TdP",()=>assert.match(classifyTachyarrhythmia({...stableTachy,qrsMs:150,polymorphicWide:true,qtcMs:520}).priority,/TdP/));
+test("tachy polymorphic wide with normal QT favors other causes",()=>assert.match(classifyTachyarrhythmia({...stableTachy,qrsMs:150,polymorphicWide:true,qtcMs:430}).priority,/多形性VT/));
+test("tachy wide plus high K keeps metabolic cause",()=>assert.ok(classifyTachyarrhythmia({...stableTachy,qrsMs:150,highPotassium:true}).possibleCauses.some(x=>x.includes("高K"))));
+test("tachy dynamic ST change requests ischemia evaluation",()=>assert.ok(classifyTachyarrhythmia({...stableTachy,dynamicStChange:true}).possibleCauses.some(x=>x.includes("虚血"))));
+test("tachy clinician wide to narrow correction recalculates classification",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,qrsMs:150,qrsCategoryOverride:"narrow"}).qrsClass,"narrow"));
+test("tachy clinician denial of preexcitation clears overall warning",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,qrsMs:150,regularity:"irregular",deltaWave:true,clinicianClassification:"atrial_fibrillation_candidate"}).overallClassification,"atrial_fibrillation_candidate"));
+test("tachy clinician AF to flutter correction recalculates overall candidate",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,regularity:"irregular",pWave:"absent",fibrillatoryWaves:true,clinicianClassification:"atrial_flutter_candidate"}).overallClassification,"atrial_flutter_candidate"));
+test("tachy hidden P in T is not classified as absent AF",()=>assert.notEqual(classifyTachyarrhythmia({...stableTachy,pWave:"buried"}).overallClassification,"atrial_fibrillation_candidate"));
+test("tachy artifact becomes indeterminate",()=>assert.equal(classifyTachyarrhythmia({...stableTachy,artifactConcern:true}).overallClassification,"indeterminate"));
 test("navigator reference image from user exists",()=>assert.equal(existsSync(new URL("../public/images/robot/navigator-reference.png",import.meta.url)),true));
 test("all navigator state images exist",()=>{
   for(const state of ["default","analyzing","warning","complete"]){

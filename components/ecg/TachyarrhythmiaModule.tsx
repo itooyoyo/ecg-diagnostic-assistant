@@ -34,6 +34,8 @@ export function TachyarrhythmiaModule({heartRate,qrsMs,regularity,onRedFlagChang
   const [fibrillatoryWaves,setFibrillatoryWaves]=useState(false);
   const [flutterWaves,setFlutterWaves]=useState(false);
   const [flutterConduction,setFlutterConduction]=useState<TachyInput["flutterConduction"]>("unknown");
+  const [advanced,setAdvanced]=useState({atrialRateBpm:null as number|null,rpIntervalMs:null as number|null,prIntervalMs:null as number|null,shortRp:false,longRp:false,abruptOnset:false,abruptTermination:false,avDissociation:false,captureBeats:false,fusionBeats:false,polymorphicWide:false,existingBundleBranchBlock:false,highPotassium:false,dynamicStChange:false,hyperacuteT:false,artifactConcern:false,frequentPac:false,multiplePWaveMorphologies:false});
+  const [clinicianClassification,setClinicianClassification]=useState<TachyInput["clinicianClassification"]>("auto");
   const [wpwHistory,setWpwHistory]=useState(false);
   const [qrsMorphologyVariable,setQrsMorphologyVariable]=useState(false);
   const [priorMi,setPriorMi]=useState(false);
@@ -45,7 +47,7 @@ export function TachyarrhythmiaModule({heartRate,qrsMs,regularity,onRedFlagChang
   const [magnesium,setMagnesium]=useState<number|null>(null);
   const [clinical,setClinical]=useState({pulse:null as number|null,spo2:null as number|null,dyspnea:false,previousEcg:false,medications:false});
 
-  const input:TachyInput={heartRate,qrsMs,regularity,pWave,pulsePresent,systolicBp,...flags,avRelationship:pQrs,deltaWave,shortPr,fibrillatoryWaves,flutterWaves,flutterConduction,wpwHistory,qrsMorphologyVariable,priorMi,structuralHeartDisease,sinusFeatures,qtcMs,potassium,calcium,magnesium};
+  const input:TachyInput={heartRate,qrsMs,regularity,pWave,pulsePresent,systolicBp,...flags,...advanced,avRelationship:pQrs,deltaWave,shortPr,fibrillatoryWaves,flutterWaves,flutterConduction,wpwHistory,qrsMorphologyVariable,priorMi,structuralHeartDisease,sinusFeatures,qtcMs,potassium,calcium,magnesium,clinicianClassification};
   const result=classifyTachyarrhythmia(input);
   const hasRedFlag=result.redFlags.length>0||result.hemodynamics.status==="cardiac-arrest";
   useEffect(()=>onRedFlagChange?.(hasRedFlag),[hasRedFlag,onRedFlagChange]);
@@ -104,12 +106,14 @@ export function TachyarrhythmiaModule({heartRate,qrsMs,regularity,onRedFlagChang
         <label className="check"><input type="checkbox" checked={sinusFeatures} onChange={e=>setSinusFeatures(e.target.checked)}/>徐々に発症・停止／心拍変動・誘因あり</label>
       </div>
     </details>
+    <details className="tachy-inputs"><summary>AV解離・発症様式・Wide頻拍を医師確認</summary><div className="tachy-form-grid"><label>心房拍数<input type="number" value={advanced.atrialRateBpm??""} onChange={e=>setAdvanced(v=>({...v,atrialRateBpm:numberOrNull(e.target.value)}))}/></label><label>RP間隔<input type="number" value={advanced.rpIntervalMs??""} onChange={e=>setAdvanced(v=>({...v,rpIntervalMs:numberOrNull(e.target.value)}))}/></label><label>PR間隔<input type="number" value={advanced.prIntervalMs??""} onChange={e=>setAdvanced(v=>({...v,prIntervalMs:numberOrNull(e.target.value)}))}/></label><label>医師最終候補<select value={clinicianClassification} onChange={e=>setClinicianClassification(e.target.value as TachyInput["clinicianClassification"])}>{["auto","sinus_tachycardia_candidate","atrial_tachycardia_candidate","atrial_flutter_candidate","atrial_fibrillation_candidate","avnrt_candidate","avrt_candidate","junctional_tachycardia_candidate","ventricular_tachycardia_candidate","preexcited_atrial_fibrillation_candidate","other_wide_complex_tachycardia","mixed","indeterminate"].map(x=><option key={x} value={x}>{x}</option>)}</select></label></div><div className="checks tachy-checks">{[["shortRp","short RP"],["longRp","long RP"],["abruptOnset","突然発症"],["abruptTermination","突然停止"],["avDissociation","AV解離"],["captureBeats","capture beat"],["fusionBeats","fusion beat"],["polymorphicWide","多形性Wide"],["existingBundleBranchBlock","既存脚ブロック"],["highPotassium","高K所見"],["dynamicStChange","動的ST変化"],["hyperacuteT","hyperacute T"],["frequentPac","頻発PAC"],["multiplePWaveMorphologies","複数P波形"],["artifactConcern","アーチファクト"]].map(([k,l])=><label className="check" key={k}><input type="checkbox" checked={Boolean(advanced[k as keyof typeof advanced])} onChange={e=>setAdvanced(v=>({...v,[k]:e.target.checked}))}/>{l}</label>)}</div></details>
 
     <div className="tachy-results">
       <div><div className="eyebrow">最優先候補</div><h4>{result.priority}</h4><ul className="list">{result.candidates.map(x=><li key={x}>{x}</li>)}</ul></div>
       <div><div className="eyebrow">不足情報</div><ul className="list">{result.missing.length?result.missing.map(x=><li key={x}>{x}</li>):<li>主要項目入力済み</li>}</ul></div>
     </div>
     <div className="tachy-results"><div><div className="eyebrow">診断アルゴリズム／理由</div><ol className="list">{result.diagnosticReasoning.map(x=><li key={x}>{x}</li>)}</ol></div><div><div className="eyebrow">Clinical Pearl</div><ul className="list">{result.clinicalPearls.map(x=><li key={x}>{x}</li>)}</ul></div></div>
+    <div className="result"><strong>総合候補：{result.overallClassification}</strong>{result.possibleCauses.length>0&&<ul className="list">{result.possibleCauses.map(x=><li key={x}>{x}</li>)}</ul>}</div>
     {result.warnings.map(x=><div className={`result ${result.preexcitedAf?"stop":"warn"}`} key={x}>{x}{result.preexcitedAf&&x.includes("房室結節")&&<><br/><small>ベラパミル、ジルチアゼム、β遮断薬、ジゴキシン、アデノシン系薬剤を安易に使用せず、専門医・救急対応を優先します。</small></>}</div>)}
     {result.contraindicatedDrugCandidates.length>0&&<div className="result stop" role="alert"><strong>禁忌候補（AF＋WPW疑い）</strong><p>{result.contraindicatedDrugCandidates.join("／")}</p><small>AV結節遮断薬単独は避け、臨床状況とガイドラインに基づき薬剤を選択してください。</small></div>}
 
