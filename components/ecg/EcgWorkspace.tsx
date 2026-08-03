@@ -37,7 +37,7 @@ import type { ElectrolyteInput } from "@/types/electrolyte-interpretation";
 import { createDefaultElectrolyteInput } from "@/data/electrolyte-interpretation/defaults.js";
 import { interpretElectrolytes } from "@/logic/electrolyte-interpretation/interpret-electrolytes.js";
 import { IntegratedInterpretation } from "@/components/integration/IntegratedInterpretation";
-import type { IntegratedInput } from "@/types/integrated-interpretation";
+import type { IntegratedInput, IntegratedInterpretation as IntegratedResult } from "@/types/integrated-interpretation";
 import { createDefaultIntegratedInput } from "@/data/integration/defaults.js";
 import { buildIntegratedInterpretation } from "@/logic/integration/build-integrated-interpretation.js";
 import type { TachyResult } from "@/logic/tachyarrhythmia/classify.js";
@@ -54,9 +54,11 @@ const qualityItems = [
   ["multipleBeats","複数拍が確認できる"],["privacyChecked","患者氏名やIDの映り込みを確認した"],
 ] as const;
 const findings = [
-  {key:"heartRate",label:"心拍数",ai:"72 bpm"},{key:"rhythm",label:"リズム",ai:"洞調律"},{key:"regularity",label:"規則性",ai:"整"},
-  {key:"pr",label:"PR間隔",ai:"164 ms"},{key:"qrs",label:"QRS幅",ai:"92 ms"},{key:"qtc",label:"QTc",ai:"425 ms"},
-  {key:"axis",label:"電気軸",ai:"正常軸"},{key:"rwave",label:"R波進行",ai:"保たれる"},{key:"st",label:"ST変化",ai:"明らかでない"},
+  {key:"heartRate",label:"心拍数",ai:"72 bpm"},{key:"rhythm",label:"リズム",ai:"洞調律"},{key:"pWave",label:"P波",ai:"各QRSに先行"},
+  {key:"pr",label:"PR",ai:"164 ms"},{key:"qrs",label:"QRS幅",ai:"92 ms"},{key:"axis",label:"軸",ai:"正常軸"},
+  {key:"rwave",label:"R波進行",ai:"保たれる"},{key:"qWave",label:"Q波",ai:"病的Q波なし"},{key:"st",label:"ST変化",ai:"明らかでない"},
+  {key:"tWave",label:"T波",ai:"明らかな異常なし"},{key:"uWave",label:"U波",ai:"目立たない"},{key:"qtc",label:"QT / QTc",ai:"QT 390 ms / QTc 425 ms"},
+  {key:"placement",label:"電極装着異常",ai:"明らかな異常なし"},{key:"regularity",label:"規則性",ai:"整"},
 ];
 
 export function EcgWorkspace() {
@@ -69,6 +71,7 @@ export function EcgWorkspace() {
   const [preview,setPreview]=useState("");
   const [fileError,setFileError]=useState("");
   const [review,setReview]=useState<Record<string,{status:string,value:string}>>(()=>Object.fromEntries(findings.map(f=>[f.key,{status:"accepted",value:f.ai}])));
+  const [reanalysisCount,setReanalysisCount]=useState(0);
   const confirmedValue=(key:string,aiValue:string)=>review[key]?.status==="accepted"?aiValue:review[key]?.status==="edited"?review[key].value:null;
   const confirmedHeartRate=numberFromFinding(confirmedValue("heartRate","72 bpm"));
   const confirmedQrs=numberFromFinding(confirmedValue("qrs","92 ms"));
@@ -134,16 +137,24 @@ export function EcgWorkspace() {
     setFile(next);setPreview(URL.createObjectURL(next));
   }
   const resultClass=qualityResult.grade==="C"?"result stop":qualityResult.grade==="B"?"result warn":"result";
-  return <div className="shell">
+  return <div className="shell compact-shell">
     <aside className="side">
       <div className="brand"><NavigatorRobot variant="icon" state={navigatorState}/><div><div className="eyebrow">Medical AI</div><h1>ECG Diagnostic Assistant</h1></div></div>
-      <nav className="nav">{["撮影・記録品質","電極装着確認","画像アップロード","AI抽出結果","所見確認・修正","Red Flag","系統的読影","診断候補","Today's Plan","原因別対応"].map((x,i)=><a className={i===0?"active":""} href={`#section-${i}`} key={x}>{String(i+1).padStart(2,"0")}　{x}</a>)}</nav>
+      <nav className="nav"><a className="active" href="#quick-upload">01　画像</a><a href="#quick-review">02　所見修正</a><a href="#clinical-results">03　結果</a></nav>
       <div className="privacy">LOCAL SESSION<br/>画像・患者情報は保存・外部送信されません</div>
     </aside>
     <main className="main">
       <header className="topbar"><div><div className="eyebrow">Cardiac navigation console</div><h2>心電図読影・対応支援ツール</h2><p className="subtitle">心電図を読むだけでなく、次の行動まで導く</p></div><span className="badge">Ver. 0.1 / MOCK ANALYSIS</span></header>
       <NavigatorCard className="navigator-card--mobile" state={navigatorState} comment={navigatorComment}/>
-      <div className="steps">{["品質","取込","抽出","警告","読影","対応"].map((s,i)=><span className={`step ${i===0?"on":""}`} key={s}>STEP {i} · {s}</span>)}</div>
+      <div className="steps compact-steps">{["画像アップロード","AI抽出所見の確認・修正","診断・対応"].map((s,i)=><span className={`step ${i===0?"on":""}`} key={s}>STEP {i+1} · {s}</span>)}</div>
+
+      <section className="card workflow-card" id="quick-upload"><div className="cardhead"><div><div className="eyebrow">Step 1</div><h3>心電図画像アップロード</h3></div><span className="badge">端末内のみ</span></div><div className="grid2"><div className="upload"><div><strong>JPG / JPEG / PNG / PDF</strong><p className="muted">20MB以下。サーバー保存・外部送信なし</p><input aria-label="心電図ファイル（簡易フロー）" type="file" accept=".jpg,.jpeg,.png,.pdf" onChange={e=>chooseFile(e.target.files?.[0]??null)}/>{fileError&&<div className="error">{fileError}</div>}</div></div><div className="upload-guide"><strong>読み取りに必要な範囲</strong><p className="muted">12誘導・誘導名・紙送り速度・感度が入るように撮影してください。</p></div></div>{file&&<p className="result">選択済み：{file.name}</p>}<button className="btn primary-action" type="button" disabled={!file} onClick={()=>document.getElementById("quick-review")?.scrollIntoView({behavior:"smooth"})}>AI解析を開始</button></section>
+
+      <section className="card workflow-card" id="quick-review"><div className="cardhead"><div><div className="eyebrow">Step 2 · Clinician review</div><h3>AI抽出所見</h3><p className="muted">AI値を初期表示しています。必要な項目だけ修正してください。</p></div><span className="badge">医師修正可能</span></div><div className="findings-review-grid">{findings.filter(f=>f.key!=="regularity").map(f=><label className="finding-editor" key={f.key}><span><strong>{f.label}</strong><small>AI: {f.ai}</small></span><input aria-label={`${f.label}の医師修正値（簡易フロー）`} value={review[f.key].value} onChange={e=>setReview(x=>({...x,[f.key]:{status:"edited",value:e.target.value}}))}/><select aria-label={`${f.label}の判定（簡易フロー）`} value={review[f.key].status} onChange={e=>setReview(x=>({...x,[f.key]:{...x[f.key],status:e.target.value}}))}><option value="accepted">AI値を採用</option><option value="edited">医師修正</option><option value="rejected">除外</option><option value="indeterminate">判定不能</option></select></label>)}</div><button className="btn primary-action" type="button" onClick={()=>{setReanalysisCount(x=>x+1);requestAnimationFrame(()=>document.getElementById("clinical-results")?.scrollIntoView({behavior:"smooth"}))}}>修正所見で再解析</button><p className="muted reanalysis-status" aria-live="polite">{reanalysisCount>0?`医師修正所見で再解析しました（${reanalysisCount}回）`:"診断候補・対応には医師確認後の所見を使用します。"}</p></section>
+
+      <ClinicalResults result={integratedResult} pearls={[...(tachyResult?.active?tachyResult.clinicalPearls:[]),...(bradyResult.classification!=="no_bradycardia"?bradyResult.clinicalPearls:[]),...conductionResult.clinicalPearls,...(sgarbossaResult.applicability==="applicable"?sgarbossaResult.clinicalPearls:[])]}/>
+
+      <details className="advanced-analysis"><summary><span>詳細解析</span><small>品質確認・誘導分布・各解析モジュールを表示</small></summary><div className="advanced-analysis__body">
 
       <IntegratedInterpretation result={integratedResult} override={integratedOverride} onOverrideChange={setIntegratedOverride}/>
 
@@ -181,6 +192,7 @@ export function EcgWorkspace() {
       </section>
         <SgarbossaModule input={integratedSgarbossaInput} result={sgarbossaResult} onChange={(next)=>{setSgarbossaInput(next);setStInput(current=>({...current,leadMeasurements:current.leadMeasurements.map(m=>{const s=next.leadMeasurements.find(x=>x.lead===m.lead);return s?{...m,direction:s.stDirection==="none"?"isoelectric":s.stDirection,amplitudeMm:s.stDeviationMm,clinicianConfirmed:s.clinicianConfirmed}:m})}))}}/>
       <section className="card" id="section-7"><div className="cardhead"><div><div className="eyebrow">Differential</div><h3>診断候補・原因別対応</h3></div><span className="badge">ダミー表示</span></div><p className="muted">医師確定所見から将来のルールエンジンが生成します。Ver.0.1では診断確定や治療用量を提示しません。</p></section>
+      </div></details>
     </main>
     <aside className="right">
       <NavigatorCard className="navigator-card--desktop" state={navigatorState} comment={navigatorComment}/>
@@ -189,6 +201,28 @@ export function EcgWorkspace() {
     </aside>
   </div>;
 }
+
+function ClinicalResults({result,pearls}:{result:IntegratedResult;pearls:string[]}) {
+  const top=result.diagnosticCandidates[0];
+  const differentials=result.diagnosticCandidates.slice(1);
+  const tests=result.todaysPlan.filter(x=>x.category==="test");
+  const actions=result.todaysPlan.filter(x=>x.category==="immediate"||x.category==="today");
+  return <section className="card workflow-card clinical-results" id="clinical-results"><div className="cardhead"><div><div className="eyebrow">Step 3 · Result</div><h3>診断・対応</h3><p className="muted">医師確認所見から再計算した結果です。</p></div><span className={`urgency-chip urgency-chip--${result.urgency}`}>{result.urgency}</span></div>
+    <ResultBlock number="1" title="診断候補（優先順位付き）">{result.diagnosticCandidates.length?<div className="candidate-reasons">{result.diagnosticCandidates.map((x,i)=><article key={x.id}><header><span>{i+1}</span><div><strong>{x.label}</strong><small>{x.confidence} · {x.urgency}</small></div></header><div><b>理由</b><SimpleList items={x.supportingFindings.map(v=>v.label)}/></div></article>)}</div>:<p className="muted">優先候補は生成されていません。</p>}</ResultBlock>
+    <section className="red-flag-panel" aria-labelledby="red-flag-title"><div><span aria-hidden="true">!</span><div><div className="eyebrow">Must not miss</div><h4 id="red-flag-title">見逃してはいけない疾患</h4></div></div>{result.criticalFindings.length?<ul className="list">{result.criticalFindings.map(x=><li key={x.id}><strong>{x.label}</strong><span>{x.supportingFindings.map(v=>v.label).join("、")||"緊急所見として医師確認が必要"}</span></li>)}</ul>:<p className="muted">現在の確定所見からRed Flag候補は生成されていません。</p>}</section>
+    <ResultBlock number="2" title="診断理由"><SimpleList items={top?.supportingFindings.map(x=>x.label)??[]}/></ResultBlock>
+    <ResultBlock number="3" title="鑑別診断">{differentials.length?<div className="differential-cards">{differentials.map(x=><article key={x.id}><h5>{x.label}</h5><div><b>採用理由</b><SimpleList items={x.supportingFindings.map(v=>v.label)}/></div><div><b>否定理由</b><SimpleList items={x.contradictingFindings.map(v=>v.label)}/></div></article>)}</div>:<p className="muted">現時点で追加の鑑別候補はありません。</p>}</ResultBlock>
+    <ResultBlock number="4" title="追加で確認すべき所見"><SimpleList items={[...result.missingInformation.map(x=>x.label),...(top?.missingInformation.map(x=>x.label)??[])]}/></ResultBlock>
+    <ResultBlock number="5" title="推奨追加検査">{tests.length?<div className="priority-list">{tests.map(x=><div key={x.id}><span className={`priority-tag priority-tag--${planPriorityKey(x.priority)}`}>{planPriorityLabel(x.priority)}</span><strong>{x.label}</strong></div>)}</div>:<p className="muted">現時点で追加検査はありません。</p>}</ResultBlock>
+    <ResultBlock number="6" title="初期対応"><div className="care-timeline">{[["今すぐ",actions.filter(x=>x.category==="immediate")],["15分以内",actions.filter(x=>x.category==="today"&&x.priority<=2)],["30〜60分以内",actions.filter(x=>x.category==="today"&&x.priority>2)]] .map(([label,rows])=><div key={label as string}><time>{label as string}</time><SimpleList items={(rows as typeof actions).map(x=>x.label)}/></div>)}</div></ResultBlock>
+    <ResultBlock number="7" title="Clinical Pearl"><SimpleList items={pearls.slice(0,3)}/></ResultBlock>
+  </section>;
+}
+
+function ResultBlock({number,title,children}:{number:string;title:string;children:React.ReactNode}) {return <section className="clinical-result-block"><header><span>{number}</span><h4>{title}</h4></header>{children}</section>}
+function SimpleList({items}:{items:string[]}) {const unique=[...new Set(items)];return unique.length?<ul className="list">{unique.map(x=><li key={x}>{x}</li>)}</ul>:<p className="muted">現時点で追加項目はありません。</p>}
+function planPriorityKey(priority:number){return priority<=1?"urgent":priority<=3?"early":"conditional"}
+function planPriorityLabel(priority:number){return priority<=1?"緊急":priority<=3?"早め":"状況次第"}
 
 function NavigatorCard({state,comment,className}:{state:NavigatorState;comment:string;className:string}) {
   const statusText={default:"待機中",analyzing:"解析中",warning:"Red Flag",complete:"確認完了"}[state];
