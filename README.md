@@ -16,6 +16,18 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## ECG image analysis
+
+実画像解析を有効にする場合は、リポジトリ直下の `.env.local` にサーバー専用の環境変数を設定します。APIキーに `NEXT_PUBLIC_` を付けないでください。
+
+```dotenv
+ECG_IMAGE_ANALYSIS_PROVIDER=openai
+OPENAI_API_KEY=your-server-side-api-key
+OPENAI_ECG_MODEL=gpt-4.1-mini
+```
+
+未設定時、`POST /api/ecg/analyze` は固定結果へフォールバックせず、`ANALYSIS_NOT_CONFIGURED` を返します。アップロード画像はファイルへ保存せず、解析リクエスト中だけメモリ上で扱います。
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

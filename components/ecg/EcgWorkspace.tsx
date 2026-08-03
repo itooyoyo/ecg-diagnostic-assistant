@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { validateEcgFile } from "@/lib/ecg-image/image-parser";
-import { ApiEcgImageAnalysisAdapter, EcgAnalysisError, MockEcgImageAnalysisAdapter } from "@/lib/ecg-image/image-analysis-adapter";
+import { ApiEcgImageAnalysisAdapter, EcgAnalysisError } from "@/lib/ecg-image/image-analysis-adapter";
 import { evaluateQuality } from "@/logic/quality/quality.js";
 import { NavigatorRobot, STEP_NAVIGATOR_COMMENTS, type NavigatorState } from "@/components/character/NavigatorRobot";
 import { LeadPlacementGuide } from "@/components/ecg/LeadPlacementGuide";
@@ -79,11 +79,9 @@ export function EcgWorkspace() {
   const [analysis,setAnalysis]=useState<AnalysisProcessState>(initialAnalysis);
   const [analysisResult,setAnalysisResult]=useState<EcgImageAnalysisResult|null>(null);
   const [privacyConfirmed,setPrivacyConfirmed]=useState(false);
-  const [demoMode,setDemoMode]=useState(false);
   const [isDragging,setIsDragging]=useState(false);
   const fileInputRef=useRef<HTMLInputElement|null>(null);
   const abortRef=useRef<AbortController|null>(null);
-  const mockEnabled=process.env.NEXT_PUBLIC_ENABLE_ECG_MOCK_ANALYSIS==="true";
   const isBusy=analysis.status==="uploading"||analysis.status==="analyzing";
   const [reanalysisCount,setReanalysisCount]=useState(0);
   const confirmedValue=(key:string)=>review[key]?.status==="accepted"?review[key].aiValue:review[key]?.status==="edited"?review[key].clinicianValue:null;
@@ -157,20 +155,20 @@ export function EcgWorkspace() {
     if(fileInputRef.current)fileInputRef.current.value="";
   }
   async function runImageAnalysis(){
-    if(!file||isBusy||(!demoMode&&!privacyConfirmed))return;
+    if(!file||isBusy||!privacyConfirmed)return;
     const controller=new AbortController();abortRef.current=controller;let timedOut=false;
-    const timeout=window.setTimeout(()=>{timedOut=true;controller.abort()},30000);
+    const timeout=window.setTimeout(()=>{timedOut=true;controller.abort()},90000);
     setAnalysis({status:"uploading",progressMessage:"画像を準備しています",errorMessage:null,startedAt:new Date().toISOString(),completedAt:null});
     try{
       await Promise.resolve();setAnalysis(x=>({...x,status:"analyzing",progressMessage:"心電図所見を抽出しています"}));
-      const adapter=demoMode&&mockEnabled?new MockEcgImageAnalysisAdapter():new ApiEcgImageAnalysisAdapter();
+      const adapter=new ApiEcgImageAnalysisAdapter();
       const result=await adapter.analyze(file,{signal:controller.signal});
       setAnalysisResult(result);setReview(reviewFromAnalysis(result));
       setAnalysis(x=>({...x,status:"success",progressMessage:"解析結果を医師が確認してください",completedAt:new Date().toISOString()}));
       requestAnimationFrame(()=>document.getElementById("quick-review")?.scrollIntoView({behavior:"smooth"}));
     }catch(error){
       if(error instanceof EcgAnalysisError&&error.code==="ANALYSIS_NOT_CONFIGURED")setAnalysis(x=>({...x,status:"not_configured",progressMessage:"画像解析サービスが設定されていません",errorMessage:error.message,completedAt:new Date().toISOString()}));
-      else if(error instanceof DOMException&&error.name==="AbortError")setAnalysis({...initialAnalysis,status:file?"file_selected":"idle",progressMessage:timedOut?"解析がタイムアウトしました。再試行してください":"解析を中断しました",errorMessage:timedOut?"30秒以内に応答がありませんでした":null});
+      else if(error instanceof DOMException&&error.name==="AbortError")setAnalysis({...initialAnalysis,status:file?"file_selected":"idle",progressMessage:timedOut?"解析がタイムアウトしました。再試行してください":"解析を中断しました",errorMessage:timedOut?"90秒以内に応答がありませんでした":null});
       else setAnalysis(x=>({...x,status:"error",progressMessage:"解析に失敗しました",errorMessage:error instanceof Error?error.message:"不明なエラー",completedAt:new Date().toISOString()}));
     }finally{window.clearTimeout(timeout);abortRef.current=null}
   }
@@ -179,7 +177,7 @@ export function EcgWorkspace() {
     <aside className="side">
       <div className="brand"><NavigatorRobot variant="icon" state={navigatorState}/><div><div className="eyebrow">Medical AI</div><h1>ECG Diagnostic Assistant</h1></div></div>
       <nav className="nav"><a className="active" href="#quick-upload">01　画像</a><a href="#quick-review">02　所見修正</a><a href="#clinical-results">03　結果</a></nav>
-      <div className="privacy">LOCAL SESSION<br/>画像・患者情報は保存・外部送信されません</div>
+      <div className="privacy">NO PERSISTENT STORAGE<br/>画像は保存しません。解析時のみ設定済みAIサービスへ一時送信します</div>
     </aside>
     <main className="main">
       <header className="topbar"><div><div className="eyebrow">Cardiac navigation console</div><h2>心電図読影・対応支援ツール</h2><p className="subtitle">心電図を読むだけでなく、次の行動まで導く</p></div><span className="badge">Ver. 0.1 / IMAGE ANALYSIS</span></header>
@@ -196,13 +194,12 @@ export function EcgWorkspace() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={preview} alt="選択した心電図画像のプレビュー"/></div><dl><div><dt>ファイル名</dt><dd>{file.name}</dd></div><div><dt>形式</dt><dd>{file.type}</dd></div><div><dt>サイズ</dt><dd>{formatFileSize(file.size)}</dd></div></dl><div className="upload-actions"><button className="btn" type="button" disabled={isBusy} onClick={()=>fileInputRef.current?.click()}>画像を変更</button><button className="btn" type="button" disabled={isBusy} onClick={removeImage}>画像を削除</button></div></div>}
         <label className="privacy-confirm"><input type="checkbox" checked={privacyConfirmed} disabled={isBusy} onChange={e=>setPrivacyConfirmed(e.target.checked)}/>患者氏名・IDなどの識別情報が画像に含まれていないことを確認しました</label>
-        {mockEnabled&&<label className="privacy-confirm demo-toggle"><input type="checkbox" checked={demoMode} disabled={isBusy} onChange={e=>setDemoMode(e.target.checked)}/>開発用デモ解析を使用（実画像の解析ではありません。匿名化確認は任意です）</label>}
         <div className={`analysis-status analysis-status--${analysis.status}`} role="status" aria-live="polite">{isBusy&&<span className="analysis-spinner" aria-hidden="true"/>}<div><strong>{analysis.progressMessage}</strong>{analysis.errorMessage&&<p>{analysis.errorMessage}</p>}</div></div>
-        <div className="upload-actions"><button className="btn primary-action" type="button" disabled={!file||isBusy||(!demoMode&&!privacyConfirmed)} onClick={runImageAnalysis}>AI解析を開始</button>{isBusy&&<button className="btn" type="button" onClick={()=>abortRef.current?.abort()}>解析を中断</button>}{(analysis.status==="error"||analysis.status==="not_configured")&&<button className="btn" type="button" disabled={!file||(!demoMode&&!privacyConfirmed)} onClick={runImageAnalysis}>再試行</button>}</div>
+        <div className="upload-actions"><button className="btn primary-action" type="button" disabled={!file||isBusy||!privacyConfirmed} onClick={runImageAnalysis}>AI解析を開始</button>{isBusy&&<button className="btn" type="button" onClick={()=>abortRef.current?.abort()}>解析を中断</button>}{(analysis.status==="error"||analysis.status==="not_configured")&&<button className="btn" type="button" disabled={!file||!privacyConfirmed} onClick={runImageAnalysis}>再試行</button>}</div>
       </section>
 
       <section className="card workflow-card" id="quick-review"><div className="cardhead"><div><div className="eyebrow">Step 2 · Clinician review</div><h3>AI抽出所見</h3><p className="muted">解析結果を診断として確定せず、各所見を医師が確認・修正します。</p></div><span className="badge">医師修正可能</span></div>
-        {analysis.status!=="success"?<div className="analysis-placeholder">画像解析後に表示されます</div>:<>{analysisResult?.source==="mock"&&<div className="result warn"><strong>デモ解析</strong><br/>テストfixtureによる表示であり、この実画像を解析した結果ではありません。</div>}<div className="findings-review-grid">{findings.filter(f=>f.key!=="regularity").map(f=>{const entry=review[f.key];return <label className="finding-editor" key={f.key}><span><strong>{f.label}</strong><small>AI: {entry.aiValue}{entry.confidence!=null?`（信頼度 ${Math.round(entry.confidence*100)}%）`:""}</small></span><input aria-label={`${f.label}の医師修正値（簡易フロー）`} value={entry.status==="edited"?entry.clinicianValue:entry.aiValue} onChange={e=>setReview(x=>({...x,[f.key]:{...x[f.key],status:"edited",clinicianValue:e.target.value}}))}/><select aria-label={`${f.label}の判定（簡易フロー）`} value={entry.status} onChange={e=>setReview(x=>({...x,[f.key]:{...x[f.key],status:e.target.value as ReviewEntry["status"]}}))}><option value="accepted">AI値を採用</option><option value="edited">医師修正</option><option value="rejected">除外</option><option value="indeterminate">判定不能</option></select>{entry.limitations.length>0&&<small className="muted">制限: {entry.limitations.join("、")}</small>}</label>})}</div><button className="btn primary-action" type="button" onClick={()=>{setReanalysisCount(x=>x+1);requestAnimationFrame(()=>document.getElementById("clinical-results")?.scrollIntoView({behavior:"smooth"}))}}>修正所見で再解析</button><p className="muted reanalysis-status" aria-live="polite">{reanalysisCount>0?`医師修正所見で総合結果を再計算しました（${reanalysisCount}回）`:"診断候補・対応には医師確認後の所見を使用します。"}</p></>}
+        {analysis.status!=="success"?<div className="analysis-placeholder">画像解析後に表示されます</div>:<>{analysisResult?.source==="mock"&&<div className="result warn"><strong>デモ解析</strong><br/>テストfixtureによる表示であり、この実画像を解析した結果ではありません。</div>}{analysisResult&&<div className={analysisResult.imageQuality.analyzable===false?"result warn":"result"}><strong>画質：{analysisResult.imageQuality.analyzable===true?"解析可能":analysisResult.imageQuality.analyzable===false?"解析困難":"判定不能"}</strong><br/><span>{[...analysisResult.imageQuality.limitations,...analysisResult.limitations].join("、")||"解析不能理由・制限事項なし"}</span></div>}<div className="findings-review-grid">{findings.filter(f=>f.key!=="regularity").map(f=>{const entry=review[f.key];return <label className="finding-editor" key={f.key}><span><strong>{f.label}</strong><small>AI: {entry.aiValue}{entry.confidence!=null?`（信頼度 ${Math.round(entry.confidence*100)}%）`:""}</small></span><input aria-label={`${f.label}の医師修正値（簡易フロー）`} value={entry.status==="edited"?entry.clinicianValue:entry.aiValue} onChange={e=>setReview(x=>({...x,[f.key]:{...x[f.key],status:"edited",clinicianValue:e.target.value}}))}/><select aria-label={`${f.label}の判定（簡易フロー）`} value={entry.status} onChange={e=>setReview(x=>({...x,[f.key]:{...x[f.key],status:e.target.value as ReviewEntry["status"]}}))}><option value="accepted">AI値を採用</option><option value="edited">医師修正</option><option value="rejected">除外</option><option value="indeterminate">判定不能</option></select>{entry.limitations.length>0&&<small className="muted">制限: {entry.limitations.join("、")}</small>}</label>})}</div><button className="btn primary-action" type="button" onClick={()=>{setReanalysisCount(x=>x+1);requestAnimationFrame(()=>document.getElementById("clinical-results")?.scrollIntoView({behavior:"smooth"}))}}>修正所見で再解析</button><p className="muted reanalysis-status" aria-live="polite">{reanalysisCount>0?`医師修正所見で総合結果を再計算しました（${reanalysisCount}回）`:"診断候補・対応には医師確認後の所見を使用します。"}</p></>}
       </section>
 
       {analysis.status==="success"?<ClinicalResults result={integratedResult} pearls={[...(tachyResult?.active?tachyResult.clinicalPearls:[]),...(bradyResult.classification!=="no_bradycardia"?bradyResult.clinicalPearls:[]),...conductionResult.clinicalPearls,...(sgarbossaResult.applicability==="applicable"?sgarbossaResult.clinicalPearls:[])]}/>:<section className="card workflow-card" id="clinical-results"><div className="cardhead"><div><div className="eyebrow">Step 3 · Result</div><h3>診断・対応</h3></div></div><div className="analysis-placeholder">画像解析後に表示されます</div></section>}

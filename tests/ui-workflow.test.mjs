@@ -75,8 +75,8 @@ test("analysis workflow calls the adapter, prevents duplicate submission and sup
 
 test("unconfigured API and mock mode are explicitly separated",async()=>{
   const [source,route,adapter]=await Promise.all([readFile(workspacePath,"utf8"),readFile(new URL("../app/api/ecg/analyze/route.ts",import.meta.url),"utf8"),readFile(new URL("../lib/ecg-image/image-analysis-adapter.ts",import.meta.url),"utf8")]);
-  assert.match(source,/NEXT_PUBLIC_ENABLE_ECG_MOCK_ANALYSIS/);
-  assert.match(source,/デモ解析/);
+  assert.doesNotMatch(source,/MockEcgImageAnalysisAdapter|NEXT_PUBLIC_ENABLE_ECG_MOCK_ANALYSIS|demoMode/);
+  assert.match(adapter,/class MockEcgImageAnalysisAdapter/);
   assert.match(route,/errorResponse\(501/);
   assert.match(route,/ANALYSIS_NOT_CONFIGURED/);
   assert.match(adapter,/FormData/);
@@ -93,7 +93,24 @@ test("normal findings stay hidden before successful image analysis",async()=>{
 
 test("real analysis requires anonymization confirmation and mobile preview stacks",async()=>{
   const [source,css]=await Promise.all([readFile(workspacePath,"utf8"),readFile(cssPath,"utf8")]);
-  assert.match(source,/!demoMode&&!privacyConfirmed/);
+  assert.match(source,/!privacyConfirmed/);
   assert.match(source,/患者氏名・IDなどの識別情報/);
   assert.match(css,/@media\(max-width:720px\).*\.upload-preview\{grid-template-columns:1fr\}/s);
+});
+
+test("server pipeline uses a replaceable ECGImageAnalysisService and server-only OpenAI provider",async()=>{
+  const [route,service,factory,provider]=await Promise.all([
+    readFile(new URL("../app/api/ecg/analyze/route.ts",import.meta.url),"utf8"),
+    readFile(new URL("../lib/ecg-image/server/ecg-image-analysis-service.ts",import.meta.url),"utf8"),
+    readFile(new URL("../lib/ecg-image/server/create-ecg-image-analysis-service.ts",import.meta.url),"utf8"),
+    readFile(new URL("../lib/ecg-image/server/openai-ecg-image-analysis-provider.ts",import.meta.url),"utf8")
+  ]);
+  assert.match(route,/service\.analyze/);
+  assert.match(route,/bytes\.fill\(0\)/);
+  assert.match(service,/type EcgImageAnalysisProvider/);
+  assert.match(service,/class ECGImageAnalysisService/);
+  assert.match(factory,/process\.env\.OPENAI_API_KEY/);
+  assert.doesNotMatch(factory,/NEXT_PUBLIC/);
+  assert.match(provider,/https:\/\/api\.openai\.com\/v1\/chat\/completions/);
+  for(const field of ["heartRateBpm","rhythm","pWave","prMs","qrsMs","axisDegrees","rWaveProgression","qWave","st","tWave","uWave","qtMs","qtcMs","imageQuality","leadPlacement","limitations"])assert.match(provider,new RegExp(field));
 });
