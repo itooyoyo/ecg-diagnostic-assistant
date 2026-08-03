@@ -73,7 +73,7 @@ export function interpretStChanges(input){
 
   const warnings=[
     ...missingPreconditions.map((item)=>`${item}が不十分なためST判定を確定しません。`),
-    ...(qrsSecondary?["QRS異常に伴う二次性ST–T変化の可能性があります。Sgarbossa等の詳細基準は後続モジュールで評価予定です。"]:[]),
+    ...(qrsSecondary?["QRS異常に伴う二次性ST–T変化の可能性があります。LBBB・心室ペーシングでは医師確認後にSgarbossaモジュールへ引き継ぎます。"]:[]),
     ...(input.preconditions.v1v2HighPlacementConcern?["V1・V2高位装着が疑われます。再記録を優先してください。"]:[]),
     ...(input.clinical.age==null||input.clinical.sex==null?["年齢・性別情報が不足しているためV2–V3の基準適用に制限があります。"]:[]),
     "ST形状単独、単一誘導、reciprocal changeの不在だけで急性冠動脈閉塞を確定・除外しません。",

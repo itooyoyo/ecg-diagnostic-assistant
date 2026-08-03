@@ -1,0 +1,23 @@
+import test from "node:test";import assert from "node:assert/strict";import {createDefaultSgarbossaInput} from "../data/sgarbossa/defaults.js";import {interpretSgarbossa} from "../logic/sgarbossa/interpret-sgarbossa.js";
+function base(context="lbbb"){const x=createDefaultSgarbossaInput();x.context=context;x.aiContext=context;x.contextClinicianConfirmed=true;x.leadMeasurements.forEach(m=>Object.assign(m,{qrsPolarity:"positive",rAmplitudeMm:10,sDepthMm:0,stDeviationMm:0,stDirection:"none",clinicianConfirmed:true,jPointConfirmed:true}));return x}function set(x,lead,p){Object.assign(x.leadMeasurements.find(m=>m.lead===lead),p);return x}
+test("LBBB confirmed is applicable",()=>assert.equal(interpretSgarbossa(base()).applicability,"applicable"));
+test("paced rhythm confirmed is applicable",()=>assert.equal(interpretSgarbossa(base("ventricular_paced")).applicability,"applicable"));
+test("LBBB-like activation confirmed is applicable",()=>assert.equal(interpretSgarbossa(base("lbbb_like")).applicability,"applicable"));
+for(const c of ["narrow","rbbb","wpw","hyperkalemia_wide","vt"])test(`${c} is excluded`,()=>assert.equal(interpretSgarbossa(base(c)).applicability,"not_applicable"));
+test("uncertain IVCD is indeterminate",()=>assert.equal(interpretSgarbossa(base("ivcd")).applicability,"indeterminate"));
+test("unconfirmed LBBB is indeterminate",()=>{const x=base();x.contextClinicianConfirmed=false;assert.equal(interpretSgarbossa(x).applicability,"indeterminate")});
+test("criterion 1 threshold positive",()=>{const r=interpretSgarbossa(set(base(),"I",{stDirection:"elevation",stDeviationMm:1}));assert.equal(r.originalCriteria[0].status,"positive");assert.equal(r.originalScore,5)});
+test("criterion 1 below threshold negative",()=>assert.equal(interpretSgarbossa(set(base(),"I",{stDirection:"elevation",stDeviationMm:.9})).originalCriteria[0].status,"negative"));
+test("criterion 2 in V1 positive",()=>{const r=interpretSgarbossa(set(base(),"V1",{qrsPolarity:"negative",sDepthMm:10,stDirection:"depression",stDeviationMm:1}));assert.equal(r.originalCriteria[1].status,"positive");assert.equal(r.originalScore,3)});
+test("criterion 2 outside V1-V3 is not positive",()=>assert.equal(interpretSgarbossa(set(base(),"V4",{qrsPolarity:"negative",sDepthMm:10,stDirection:"depression",stDeviationMm:2})).originalCriteria[1].status,"negative"));
+test("original discordant 5 mm positive",()=>assert.equal(interpretSgarbossa(set(base(),"V2",{qrsPolarity:"negative",sDepthMm:30,stDirection:"elevation",stDeviationMm:5})).originalCriteria[2].status,"positive"));
+test("original discordant 4.9 mm negative",()=>assert.equal(interpretSgarbossa(set(base(),"V2",{qrsPolarity:"negative",sDepthMm:30,stDirection:"elevation",stDeviationMm:4.9})).originalCriteria[2].status,"negative"));
+test("modified ratio exactly -0.25 positive",()=>assert.equal(interpretSgarbossa(set(base(),"V2",{qrsPolarity:"negative",sDepthMm:8,stDirection:"elevation",stDeviationMm:2})).modifiedCriteria[2].status,"positive"));
+test("modified ratio -0.24 negative",()=>assert.equal(interpretSgarbossa(set(base(),"V2",{qrsPolarity:"negative",sDepthMm:10,stDirection:"elevation",stDeviationMm:2.4})).modifiedCriteria[2].status,"negative"));
+test("modified requires at least 1 mm ST",()=>assert.equal(interpretSgarbossa(set(base(),"V2",{qrsPolarity:"negative",sDepthMm:2,stDirection:"elevation",stDeviationMm:.9})).modifiedCriteria[2].status,"negative"));
+test("S depth zero never calculates ratio",()=>{const r=interpretSgarbossa(set(base(),"V2",{qrsPolarity:"negative",sDepthMm:0,stDirection:"elevation",stDeviationMm:5}));assert.equal(r.leadResults.find(x=>x.lead==="V2").signedStSratio,null)});
+test("equiphasic QRS is indeterminate",()=>assert.equal(interpretSgarbossa(set(base(),"V2",{qrsPolarity:"equiphasic",stDirection:"elevation",stDeviationMm:2})).modifiedPositive,null));
+test("positive criterion plus ischemic symptoms is high concern",()=>{const x=set(base(),"I",{stDirection:"elevation",stDeviationMm:1});x.clinical.ischemicSymptoms=true;assert.equal(interpretSgarbossa(x).clinicalConcern,"high")});
+test("paced positive has paced red flag wording",()=>{const x=set(base("ventricular_paced"),"I",{stDirection:"elevation",stDeviationMm:1});assert.match(interpretSgarbossa(x).redFlags[0],/ペーシング/)});
+test("negative result does not exclude occlusion",()=>assert.ok(interpretSgarbossa(base()).clinicalPearls.some(x=>x.includes("除外できません"))));
+test("hemodynamic instability is a red flag",()=>{const x=base();x.clinical.hemodynamicInstability=true;assert.ok(interpretSgarbossa(x).redFlags.includes("循環動態不安定"))});
