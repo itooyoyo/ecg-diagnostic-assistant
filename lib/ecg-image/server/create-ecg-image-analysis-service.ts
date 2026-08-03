@@ -8,6 +8,6 @@ export function createECGImageAnalysisService():ECGImageAnalysisService|null{
   if(provider!=="openai")return null;
   const apiKey=process.env.OPENAI_API_KEY;
   if(!apiKey)return null;
-  const model=process.env.OPENAI_ECG_MODEL??"gpt-4.1-mini";
+  const model=process.env.OPENAI_ECG_MODEL??"gpt-5.6";
   return new ECGImageAnalysisService(new OpenAIEcgImageAnalysisProvider(apiKey,model));
 }

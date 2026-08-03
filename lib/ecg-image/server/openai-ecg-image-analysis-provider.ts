@@ -1,39 +1,51 @@
 import "server-only";
 
+import OpenAI from "openai";
 import type { EcgImageAnalysisResult } from "@/types/ecg";
 import { ECGImageAnalysisServiceError, type EcgImageAnalysisProvider, type EcgImagePayload } from "./ecg-image-analysis-service";
 
 type ExtractedResult=Omit<EcgImageAnalysisResult,"analysisId"|"source"|"model"|"extractedAt">;
+const confidenceKeys=["heartRate","rhythm","pWave","pr","qrs","axis","rwave","qWave","st","tWave","uWave","qtc","pvc","rOnT","bundleBranchBlock","placement","regularity"];
+const nullableNumber={type:["number","null"],minimum:0,maximum:1};
 
-const schema={
+export const ecgImageFindingsSchema={
   type:"object",additionalProperties:false,
   required:["imageQuality","measurements","findings","confidence","limitations"],
   properties:{
     imageQuality:{type:"object",additionalProperties:false,required:["analyzable","limitations"],properties:{analyzable:{type:["boolean","null"]},limitations:{type:"array",items:{type:"string"}}}},
     measurements:{type:"object",additionalProperties:false,required:["heartRateBpm","rhythm","prMs","qrsMs","qtMs","qtcMs","axisDegrees"],properties:{heartRateBpm:{type:["number","null"]},rhythm:{type:["string","null"]},prMs:{type:["number","null"]},qrsMs:{type:["number","null"]},qtMs:{type:["number","null"]},qtcMs:{type:["number","null"]},axisDegrees:{type:["number","null"]}}},
-    findings:{type:"object",additionalProperties:false,required:["pWave","qrs","st","tWave","uWave","ectopy","rWaveProgression","qWave","leadPlacement","regularity"],properties:{pWave:{type:"string"},qrs:{type:"string"},st:{type:"string"},tWave:{type:"string"},uWave:{type:"string"},ectopy:{type:"string"},rWaveProgression:{type:"string"},qWave:{type:"string"},leadPlacement:{type:"string"},regularity:{type:"string"}}},
-    confidence:{type:"object",additionalProperties:false,required:["overall","perField"],properties:{overall:{type:["number","null"],minimum:0,maximum:1},perField:{type:"object",additionalProperties:false,required:["heartRate","rhythm","pWave","pr","qrs","axis","rwave","qWave","st","tWave","uWave","qtc","placement","regularity"],properties:Object.fromEntries(["heartRate","rhythm","pWave","pr","qrs","axis","rwave","qWave","st","tWave","uWave","qtc","placement","regularity"].map(key=>[key,{type:["number","null"],minimum:0,maximum:1}]))}}},
+    findings:{type:"object",additionalProperties:false,required:["pWave","qrs","st","tWave","uWave","ectopy","pvc","rOnT","bundleBranchBlock","rWaveProgression","qWave","leadPlacement","regularity"],properties:{pWave:{type:"string"},qrs:{type:"string"},st:{type:"string"},tWave:{type:"string"},uWave:{type:"string"},ectopy:{type:"string"},pvc:{type:"string"},rOnT:{type:"string"},bundleBranchBlock:{type:"string"},rWaveProgression:{type:"string"},qWave:{type:"string"},leadPlacement:{type:"string"},regularity:{type:"string"}}},
+    confidence:{type:"object",additionalProperties:false,required:["overall","perField"],properties:{overall:{type:["number","null"],minimum:0,maximum:1},perField:{type:"object",additionalProperties:false,required:confidenceKeys,properties:Object.fromEntries(confidenceKeys.map(key=>[key,nullableNumber]))}}},
     limitations:{type:"array",items:{type:"string"}}
   }
 } as const;
 
 export class OpenAIEcgImageAnalysisProvider implements EcgImageAnalysisProvider{
-  readonly name="openai";
-  constructor(private readonly apiKey:string,readonly model:string,private readonly endpoint="https://api.openai.com/v1/chat/completions"){}
+  readonly name="openai-responses";
+  private readonly client:OpenAI;
+
+  constructor(apiKey:string,readonly model:string){this.client=new OpenAI({apiKey,maxRetries:1,timeout:85_000})}
 
   async analyze(image:EcgImagePayload,options?:{signal?:AbortSignal}):Promise<ExtractedResult>{
-    const base64=Buffer.from(image.bytes).toString("base64");
-    let response:Response;
+    let base64=Buffer.from(image.bytes).toString("base64");
     try{
-      response=await fetch(this.endpoint,{method:"POST",headers:{Authorization:`Bearer ${this.apiKey}`,"Content-Type":"application/json"},signal:options?.signal,body:JSON.stringify({model:this.model,temperature:0,messages:[{role:"system",content:"あなたは心電図画像から客観的所見だけを抽出する医療画像解析支援です。診断を確定せず、読み取れない値はnullまたは判定不能とし、推測で正常値を補完しないでください。誘導名、校正、画質を確認し、画像だけで判断できない制限を必ず明記してください。"},{role:"user",content:[{type:"text",text:"この心電図画像から、指定JSON schemaの客観的所見を抽出してください。QTcは画像上で確認または妥当に計算できる場合だけ返してください。"},{type:"image_url",image_url:{url:`data:${image.mimeType};base64,${base64}`,detail:"high"}}]}],response_format:{type:"json_schema",json_schema:{name:"ecg_image_findings",strict:true,schema}}})});
-    }catch(error){if(error instanceof DOMException&&error.name==="AbortError")throw error;throw new ECGImageAnalysisServiceError("PROVIDER_NETWORK_ERROR","画像解析サービスへ接続できませんでした。",502)}
-    let payload:unknown;
-    try{payload=await response.json()}catch{throw new ECGImageAnalysisServiceError("PROVIDER_INVALID_RESPONSE","画像解析サービスから不正な応答が返されました。",502)}
-    if(!response.ok){const message=(payload as {error?:{message?:string}})?.error?.message;throw new ECGImageAnalysisServiceError("PROVIDER_ERROR",message?`画像解析サービス: ${message}`:"画像解析サービスでエラーが発生しました。",response.status>=400&&response.status<500?502:response.status)}
-    const content=(payload as {choices?:Array<{message?:{content?:string;refusal?:string}}>} )?.choices?.[0]?.message;
-    if(content?.refusal)throw new ECGImageAnalysisServiceError("ANALYSIS_REFUSED","画像解析を完了できませんでした。",422);
-    if(!content?.content)throw new ECGImageAnalysisServiceError("PROVIDER_INVALID_RESPONSE","画像解析結果が空でした。",502);
-    try{return validateResult(JSON.parse(content.content))}catch(error){if(error instanceof ECGImageAnalysisServiceError)throw error;throw new ECGImageAnalysisServiceError("PROVIDER_INVALID_RESPONSE","画像解析結果のJSON形式が正しくありません。",502)}
+      const response=await this.client.responses.create({
+        model:this.model,
+        store:false,
+        reasoning:{effort:"low"},
+        instructions:"心電図画像から客観的所見の候補だけを抽出する。診断、原因疾患、治療、PCI適応、薬剤、薬剤量、予後は一切生成しない。読めない値はnullまたは『判定不能』とし、正常値を推測補完しない。画像品質と解析不能理由を必ず明記する。出力は医師確認前の候補であり最終診断ではない。",
+        input:[{role:"user",content:[{type:"input_text",text:"画像内の心電図から指定schemaの所見候補を抽出してください。心拍数、リズム、PR、QRS、QT/QTc、軸、P波、Q波、R波進行、ST、T波、U波、PVC、R on T候補、脚ブロック候補、電極装着異常候補、画像品質、解析不能理由のみを対象にしてください。"},{type:"input_image",image_url:`data:${image.mimeType};base64,${base64}`,detail:"high"}]}],
+        text:{format:{type:"json_schema",name:"ecg_image_findings",description:"心電図画像から抽出した客観的所見候補。診断や治療を含まない。",strict:true,schema:ecgImageFindingsSchema}}
+      },{signal:options?.signal});
+      if(!response.output_text)throw new ECGImageAnalysisServiceError("ANALYSIS_REFUSED","画像解析を完了できませんでした。",422);
+      return validateResult(JSON.parse(response.output_text));
+    }catch(error){
+      if(error instanceof DOMException&&error.name==="AbortError")throw error;
+      if(error instanceof ECGImageAnalysisServiceError)throw error;
+      if(error instanceof SyntaxError)throw new ECGImageAnalysisServiceError("PROVIDER_INVALID_RESPONSE","画像解析結果のJSON形式が正しくありません。",502);
+      if(error instanceof OpenAI.APIError)throw new ECGImageAnalysisServiceError("PROVIDER_ERROR",providerErrorMessage(error.status),error.status===429?429:502);
+      throw new ECGImageAnalysisServiceError("PROVIDER_NETWORK_ERROR","画像解析サービスへ接続できませんでした。",502);
+    }finally{base64=""}
   }
 }
 
@@ -43,3 +55,4 @@ function validateResult(value:unknown):ExtractedResult{
   if(!result.imageQuality||!result.measurements||!result.findings||!result.confidence||!Array.isArray(result.limitations))throw new ECGImageAnalysisServiceError("PROVIDER_INVALID_RESPONSE","画像解析結果に必要な項目がありません。",502);
   return result as ExtractedResult;
 }
+function providerErrorMessage(status:number|undefined){return status===401?"画像解析サービスの認証設定を確認してください。":status===429?"画像解析サービスが混雑しています。時間をおいて再試行してください。":"画像解析サービスでエラーが発生しました。"}

@@ -15,14 +15,14 @@ test("physician-first workflow exposes the three primary steps", async () => {
 
 test("clinician review includes all requested objective findings", async () => {
   const source = await readFile(workspacePath, "utf8");
-  for (const label of ["心拍数","リズム","P波","PR","QRS幅","軸","R波進行","Q波","ST変化","T波","U波","QT / QTc","電極装着異常"]) {
+  for (const label of ["心拍数","リズム","P波","PR","QRS幅","軸","R波進行","Q波","ST変化","T波","U波","QT / QTc","PVC","R on T候補","脚ブロック候補","電極装着異常"]) {
     assert.match(source, new RegExp(`label:\"${label.replace("/", "\\/")}`));
   }
 });
 
 test("clinical result sections keep the requested order", async () => {
   const source = await readFile(workspacePath, "utf8");
-  const labels = ["診断候補（優先順位付き）","診断理由","鑑別診断","追加で確認すべき所見","推奨追加検査","初期対応","Clinical Pearl"];
+  const labels = ["診断候補（優先順位付き）","診断理由","原因疾患鑑別","推奨追加検査","初期対応","Clinical Pearl"];
   let cursor = -1;
   for (const label of labels) {
     const next = source.indexOf(`title=\"${label}\"`);
@@ -94,7 +94,7 @@ test("normal findings stay hidden before successful image analysis",async()=>{
 test("real analysis requires anonymization confirmation and mobile preview stacks",async()=>{
   const [source,css]=await Promise.all([readFile(workspacePath,"utf8"),readFile(cssPath,"utf8")]);
   assert.match(source,/!privacyConfirmed/);
-  assert.match(source,/患者氏名・IDなどの識別情報/);
+  for(const term of ["患者氏名","患者ID","生年月日","施設名"])assert.match(source,new RegExp(term));
   assert.match(css,/@media\(max-width:720px\).*\.upload-preview\{grid-template-columns:1fr\}/s);
 });
 
@@ -111,6 +111,12 @@ test("server pipeline uses a replaceable ECGImageAnalysisService and server-only
   assert.match(service,/class ECGImageAnalysisService/);
   assert.match(factory,/process\.env\.OPENAI_API_KEY/);
   assert.doesNotMatch(factory,/NEXT_PUBLIC/);
-  assert.match(provider,/https:\/\/api\.openai\.com\/v1\/chat\/completions/);
-  for(const field of ["heartRateBpm","rhythm","pWave","prMs","qrsMs","axisDegrees","rWaveProgression","qWave","st","tWave","uWave","qtMs","qtcMs","imageQuality","leadPlacement","limitations"])assert.match(provider,new RegExp(field));
+  assert.match(provider,/from "openai"/);
+  assert.match(provider,/client\.responses\.create/);
+  assert.match(provider,/type:"input_image"/);
+  assert.match(provider,/text:\{format:\{type:"json_schema"/);
+  assert.match(provider,/strict:true/);
+  assert.match(provider,/store:false/);
+  assert.doesNotMatch(provider,/chat\.completions|v1\/chat\/completions/);
+  for(const field of ["heartRateBpm","rhythm","pWave","prMs","qrsMs","axisDegrees","rWaveProgression","qWave","st","tWave","uWave","pvc","rOnT","bundleBranchBlock","qtMs","qtcMs","imageQuality","leadPlacement","limitations"])assert.match(provider,new RegExp(field));
 });

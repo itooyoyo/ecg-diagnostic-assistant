@@ -23,10 +23,10 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 ```dotenv
 ECG_IMAGE_ANALYSIS_PROVIDER=openai
 OPENAI_API_KEY=your-server-side-api-key
-OPENAI_ECG_MODEL=gpt-4.1-mini
+OPENAI_ECG_MODEL=gpt-5.6
 ```
 
-未設定時、`POST /api/ecg/analyze` は固定結果へフォールバックせず、`ANALYSIS_NOT_CONFIGURED` を返します。アップロード画像はファイルへ保存せず、解析リクエスト中だけメモリ上で扱います。
+未設定時、`POST /api/ecg/analyze` は固定結果へフォールバックせず、`ANALYSIS_NOT_CONFIGURED` を返します。実解析は公式OpenAI SDKのResponses APIとStructured Outputsを使用します。`store: false`を指定し、アップロード画像はファイルへ保存せず、解析リクエスト中だけメモリ上で扱います。
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

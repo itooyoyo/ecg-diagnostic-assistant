@@ -21,7 +21,7 @@ export type EcgImageAnalysisResult={
   extractedAt:string;
   imageQuality:{analyzable:boolean|null;limitations:string[]};
   measurements:{heartRateBpm:number|null;rhythm:string|null;prMs:number|null;qrsMs:number|null;qtMs:number|null;qtcMs:number|null;axisDegrees:number|null};
-  findings:{pWave:unknown;qrs:unknown;st:unknown;tWave:unknown;uWave:unknown;ectopy:unknown;rWaveProgression?:unknown;qWave?:unknown;leadPlacement?:unknown;regularity?:unknown};
+  findings:{pWave:unknown;qrs:unknown;st:unknown;tWave:unknown;uWave:unknown;ectopy:unknown;pvc?:unknown;rOnT?:unknown;bundleBranchBlock?:unknown;rWaveProgression?:unknown;qWave?:unknown;leadPlacement?:unknown;regularity?:unknown};
   confidence:{overall:number|null;perField:Record<string,number|null>};
   limitations:string[];
 };
