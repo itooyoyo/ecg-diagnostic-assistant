@@ -1,0 +1,2 @@
+import type {ExternalToolAction} from "@/types/integrated-interpretation";
+export function ExternalToolActions({items}:{items:ExternalToolAction[]}){return <section className="integrated-section"><h3>外部ツール</h3>{items.length?items.map(x=><div className="external-tool" key={x.id}><div><strong>{x.label}</strong><p>{x.reason}</p><small>送信候補：K、Mg、Ca、イオン化Ca、QTc、QRS幅、リズム。患者識別情報・画像は含めません。</small></div><button type="button" disabled={x.disabled}>準備中（自動送信なし）</button></div>):<p className="muted">現在、外部ツール連携の提案はありません。データは自動送信されません。</p>}</section>}
