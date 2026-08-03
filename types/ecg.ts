@@ -13,7 +13,19 @@ export type ObjectiveFindings = {
 };
 export type ReviewedFinding<T=string> = { aiValue:T; clinicianValue:T|null; status:ReviewStatus };
 export type EvidenceSource = { sourceOrganization:"JCS"|"JHRS"|"AHA/ACC/HRS"|"ESC"; sourceTitle:string; publicationYear:number; section:string; url:string; evidenceType:"guideline"|"statement"|"peer-reviewed" };
-export type AnalysisStatus="idle"|"file_selected"|"uploading"|"analyzing"|"success"|"error"|"not_configured";
+export type AnalysisStatus="idle"|"file_selected"|"cropping"|"uploading"|"analyzing"|"partial_success"|"success"|"error"|"not_configured";
+export type EcgAnalysisErrorCode =
+  | "INVALID_FILE" | "FILE_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "DEIDENTIFICATION_NOT_CONFIRMED"
+  | "IMAGE_DECODE_FAILED" | "IMAGE_TOO_SMALL" | "IMAGE_NOT_ANALYZABLE" | "ECG_REGION_NOT_FOUND"
+  | "LEADS_NOT_IDENTIFIABLE" | "INSUFFICIENT_VISIBLE_LEADS" | "PAPER_SPEED_UNKNOWN" | "GAIN_UNKNOWN"
+  | "MODEL_REFUSAL" | "EMPTY_MODEL_RESPONSE" | "MODEL_OUTPUT_INCOMPLETE" | "INVALID_JSON"
+  | "SCHEMA_VALIDATION_FAILED" | "INVALID_MEASUREMENT_VALUE" | "PROVIDER_RATE_LIMITED"
+  | "ANALYSIS_TIMEOUT" | "ANALYSIS_NOT_CONFIGURED" | "PROVIDER_UNAVAILABLE" | "ANALYSIS_FAILED" | "USER_CANCELLED";
+export type EcgAnalysisFieldIssue={field:string;issue:string};
+export type EcgAnalysisErrorDetail={
+  code:EcgAnalysisErrorCode;userMessage:string;retryable:boolean;suggestedActions:string[];
+  fieldIssues?:EcgAnalysisFieldIssue[];analysisLimitations?:string[];requestId?:string;
+};
 export type EcgImageAnalysisResult={
   analysisId:string;
   source:"real_ai"|"mock";
@@ -24,5 +36,7 @@ export type EcgImageAnalysisResult={
   findings:{pWave:unknown;qrs:unknown;st:unknown;tWave:unknown;uWave:unknown;ectopy:unknown;pvc?:unknown;rOnT?:unknown;bundleBranchBlock?:unknown;rWaveProgression?:unknown;qWave?:unknown;leadPlacement?:unknown;regularity?:unknown};
   confidence:{overall:number|null;perField:Record<string,number|null>};
   limitations:string[];
+  partialSuccess?:boolean;
+  fieldIssues?:EcgAnalysisFieldIssue[];
 };
-export type AnalysisProcessState={status:AnalysisStatus;progressMessage:string;errorMessage:string|null;startedAt:string|null;completedAt:string|null};
+export type AnalysisProcessState={status:AnalysisStatus;progressMessage:string;errorMessage:string|null;errorDetail?:EcgAnalysisErrorDetail|null;startedAt:string|null;completedAt:string|null};

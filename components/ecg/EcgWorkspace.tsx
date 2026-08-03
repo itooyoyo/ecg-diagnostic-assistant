@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { validateEcgFile } from "@/lib/ecg-image/image-parser";
 import { ApiEcgImageAnalysisAdapter, EcgAnalysisError } from "@/lib/ecg-image/image-analysis-adapter";
+import { EcgImageCropper } from "@/components/ecg/EcgImageCropper";
+import type { CropRect } from "@/lib/ecg-image/client-image-processing";
 import { evaluateQuality } from "@/logic/quality/quality.js";
 import { NavigatorRobot, STEP_NAVIGATOR_COMMENTS, type NavigatorState } from "@/components/character/NavigatorRobot";
 import { LeadPlacementGuide } from "@/components/ecg/LeadPlacementGuide";
@@ -46,7 +48,7 @@ import type { SgarbossaInput } from "@/types/sgarbossa-interpretation";
 import { createDefaultSgarbossaInput } from "@/data/sgarbossa/defaults.js";
 import { interpretSgarbossa } from "@/logic/sgarbossa/interpret-sgarbossa.js";
 import { SgarbossaModule } from "@/components/interpretation/SgarbossaModule";
-import type { AnalysisProcessState, EcgImageAnalysisResult } from "@/types/ecg";
+import type { AnalysisProcessState, EcgAnalysisErrorDetail, EcgImageAnalysisResult } from "@/types/ecg";
 
 const qualityItems = [
   ["allLeads","12誘導がすべて写っている"],["leadLabels","誘導名が読める"],["waveformsComplete","波形が途中で切れていない"],
@@ -74,11 +76,17 @@ export function EcgWorkspace() {
   const [hasTachyRedFlag,setHasTachyRedFlag]=useState(false);
   const [tachyResult,setTachyResult]=useState<TachyResult|null>(null);
   const [file,setFile]=useState<File|null>(null);
+  const [originalFile,setOriginalFile]=useState<File|null>(null);
+  const [originalPreview,setOriginalPreview]=useState("");
   const [preview,setPreview]=useState("");
+  const [processedPreview,setProcessedPreview]=useState("");
+  const [cropState,setCropState]=useState<CropRect|null>(null);
+  const [isCropping,setIsCropping]=useState(false);
   const [fileError,setFileError]=useState("");
   const [review,setReview]=useState<Record<string,ReviewEntry>>(emptyReview);
   const [analysis,setAnalysis]=useState<AnalysisProcessState>(initialAnalysis);
   const [analysisResult,setAnalysisResult]=useState<EcgImageAnalysisResult|null>(null);
+  const [manualMode,setManualMode]=useState(false);
   const [privacyConfirmed,setPrivacyConfirmed]=useState(false);
   const [isDragging,setIsDragging]=useState(false);
   const fileInputRef=useRef<HTMLInputElement|null>(null);
@@ -140,21 +148,26 @@ export function EcgWorkspace() {
   const tachyActive=confirmedHeartRate!=null&&confirmedHeartRate>=100;
   const navigatorComment=hasIntegratedRedFlag?"重要所見があります。循環動態と医師確定所見を確認してください。":hasPlacementWarning||hasTachyRedFlag||hasBradyRedFlag||hasElectrolyteRedFlag?"緊急対応を優先してください":tachyActive?"QRS幅と規則性から整理します":hasClinicianEdits?"医師確認済み所見から総合サマリーを更新しました。":navigatorState==="analyzing"?STEP_NAVIGATOR_COMMENTS[1]:STEP_NAVIGATOR_COMMENTS[0];
 
-  useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview)},[preview]);
+  useEffect(()=>()=>{if(originalPreview)URL.revokeObjectURL(originalPreview)},[originalPreview]);
+  useEffect(()=>()=>{if(processedPreview)URL.revokeObjectURL(processedPreview)},[processedPreview]);
+  useEffect(()=>{if(file&&!originalFile){setOriginalFile(file);setOriginalPreview(preview)}},[file,originalFile,preview]);
   useEffect(()=>()=>abortRef.current?.abort(),[]);
-  function resetExtractedFindings(){setAnalysisResult(null);setReview(emptyReview());setReanalysisCount(0)}
+  function resetExtractedFindings(){setAnalysisResult(null);setManualMode(false);setReview(emptyReview());setReanalysisCount(0)}
   function handleSelectedFile(next:File|null){
     if(isBusy)return;
-    setFileError("");setFile(null);setPreview("");resetExtractedFindings();
+    setFileError("");setFile(null);setOriginalFile(null);setOriginalPreview("");setPreview("");setProcessedPreview("");setCropState(null);setIsCropping(false);setPrivacyConfirmed(false);resetExtractedFindings();
     if(!next){removeImage();return}
     const result=validateEcgFile(next);
     if(!result.valid){setFileError(result.error??"画像を読み込めませんでした");setAnalysis({...initialAnalysis,status:"error",progressMessage:"画像を選択してください",errorMessage:result.error??"画像を読み込めませんでした"});return}
     setFile(next);setPreview(URL.createObjectURL(next));setAnalysis({...initialAnalysis,status:"file_selected",progressMessage:"解析を開始できます"});
   }
   function removeImage(){
-    abortRef.current?.abort();setFile(null);setPreview("");setFileError("");setPrivacyConfirmed(false);resetExtractedFindings();setAnalysis(initialAnalysis);
+    abortRef.current?.abort();setFile(null);setOriginalFile(null);setOriginalPreview("");setPreview("");setProcessedPreview("");setCropState(null);setIsCropping(false);setFileError("");setPrivacyConfirmed(false);resetExtractedFindings();setAnalysis(initialAnalysis);
     if(fileInputRef.current)fileInputRef.current.value="";
   }
+  function useOriginalImage(){if(!originalFile)return;setFile(originalFile);setPreview(originalPreview);setProcessedPreview("");setCropState(null);setIsCropping(false);setPrivacyConfirmed(false);resetExtractedFindings();setAnalysis({...initialAnalysis,status:"file_selected",progressMessage:"元画像を使用します"})}
+  function confirmCrop(processed:File,crop:CropRect){const url=URL.createObjectURL(processed);setFile(processed);setProcessedPreview(url);setPreview(url);setCropState(crop);setIsCropping(false);setPrivacyConfirmed(false);resetExtractedFindings();setAnalysis({...initialAnalysis,status:"file_selected",progressMessage:"切り抜き画像を解析できます"})}
+  function continueManually(){setManualMode(true);setAnalysisResult(null);setReview(emptyReview());setAnalysis({...initialAnalysis,status:"success",progressMessage:"画像AI解析未実施：医師の手入力で続行中",completedAt:new Date().toISOString()});requestAnimationFrame(()=>document.getElementById("quick-review")?.scrollIntoView({behavior:"smooth"}))}
   async function runImageAnalysis(){
     if(!file||isBusy||!privacyConfirmed)return;
     const controller=new AbortController();abortRef.current=controller;let timedOut=false;
@@ -168,6 +181,7 @@ export function EcgWorkspace() {
       setAnalysis(x=>({...x,status:"success",progressMessage:"解析結果を医師が確認してください",completedAt:new Date().toISOString()}));
       requestAnimationFrame(()=>document.getElementById("quick-review")?.scrollIntoView({behavior:"smooth"}));
     }catch(error){
+      if(error instanceof EcgAnalysisError){setAnalysis(x=>({...x,status:error.code==="ANALYSIS_NOT_CONFIGURED"?"not_configured":"error",progressMessage:error.code==="ANALYSIS_NOT_CONFIGURED"?"画像解析サービスが設定されていません":"解析できなかった理由",errorMessage:error.message,errorDetail:error.detail,completedAt:new Date().toISOString()}));return}
       if(error instanceof EcgAnalysisError&&error.code==="ANALYSIS_NOT_CONFIGURED")setAnalysis(x=>({...x,status:"not_configured",progressMessage:"画像解析サービスが設定されていません",errorMessage:error.message,completedAt:new Date().toISOString()}));
       else if(error instanceof DOMException&&error.name==="AbortError")setAnalysis({...initialAnalysis,status:file?"file_selected":"idle",progressMessage:timedOut?"解析がタイムアウトしました。再試行してください":"解析を中断しました",errorMessage:timedOut?"90秒以内に応答がありませんでした":null});
       else setAnalysis(x=>({...x,status:"error",progressMessage:"解析に失敗しました",errorMessage:error instanceof Error?error.message:"不明なエラー",completedAt:new Date().toISOString()}));
@@ -190,12 +204,17 @@ export function EcgWorkspace() {
           <strong>JPEG / PNG / WebP</strong><p className="muted">20MB以下の画像を選択、またはここへドロップしてください。</p>
           <input ref={fileInputRef} aria-label="心電図画像ファイル" type="file" accept="image/jpeg,image/png,image/webp" disabled={isBusy} onChange={e=>handleSelectedFile(e.target.files?.[0]??null)}/>
         </div>
+        {isCropping&&originalFile&&originalPreview&&<EcgImageCropper file={originalFile} previewUrl={originalPreview} onCancel={()=>setIsCropping(false)} onConfirm={confirmCrop}/>}
+        {file&&preview&&!isCropping&&<div className="upload-actions"><button className="btn" type="button" disabled={isBusy} onClick={()=>{setIsCropping(true);setAnalysis(x=>({...x,status:"cropping",progressMessage:"切り抜き範囲を調整してください"}))}}>{cropState?"もう一度切り抜く":"画像を切り抜く"}</button>{cropState&&<button className="btn" type="button" disabled={isBusy} onClick={useOriginalImage}>元画像に戻す</button>}<span className="muted">{cropState?`回転 ${cropState.rotation}°・処理画像を解析に使用します`:"元画像を解析に使用します"}</span></div>}
         {fileError&&<div className="error" role="alert">{fileError}</div>}
         {file&&preview&&<div className="upload-preview"><div>{/* Blob URLs cannot use Next image optimization. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={preview} alt="選択した心電図画像のプレビュー"/></div><dl><div><dt>ファイル名</dt><dd>{file.name}</dd></div><div><dt>形式</dt><dd>{file.type}</dd></div><div><dt>サイズ</dt><dd>{formatFileSize(file.size)}</dd></div></dl><div className="upload-actions"><button className="btn" type="button" disabled={isBusy} onClick={()=>fileInputRef.current?.click()}>画像を変更</button><button className="btn" type="button" disabled={isBusy} onClick={removeImage}>画像を削除</button></div></div>}
         <label className="privacy-confirm"><input type="checkbox" checked={privacyConfirmed} disabled={isBusy} onChange={e=>setPrivacyConfirmed(e.target.checked)}/>患者氏名・患者ID・生年月日・施設名が画像に含まれていないことを確認しました</label>
         <div className={`analysis-status analysis-status--${analysis.status}`} role="status" aria-live="polite">{isBusy&&<span className="analysis-spinner" aria-hidden="true"/>}<div><strong>{analysis.progressMessage}</strong>{analysis.errorMessage&&<p>{analysis.errorMessage}</p>}</div></div>
+        {analysis.errorDetail&&<><AnalysisErrorDetails error={analysis.errorDetail}/><div className="upload-actions"><button className="btn" type="button" onClick={()=>setIsCropping(true)} disabled={!originalFile}>切り抜きを修正</button><button className="btn" type="button" onClick={useOriginalImage} disabled={!originalFile}>元画像に戻る</button><button className="btn" type="button" onClick={()=>fileInputRef.current?.click()}>別の画像を選択</button><button className="btn" type="button" onClick={continueManually}>AI解析を使わず手入力で続ける</button></div></>}
+        {manualMode&&<div className="result warn" role="status"><strong>画像AI解析未実施</strong><br/>AI所見は使用せず、医師が主要所見を手入力して既存ルールエンジンを実行します。固定のAI値は使用しません。</div>}
+        {analysisResult?.partialSuccess&&<div className="result warn" role="status"><strong>一部の項目を解析できませんでした</strong><br/>取得できた所見は表示しています。判定不能の項目を医師が確認・入力してください。</div>}
         <div className="upload-actions"><button className="btn primary-action" type="button" disabled={!file||isBusy||!privacyConfirmed} onClick={runImageAnalysis}>AI解析を開始</button>{isBusy&&<button className="btn" type="button" onClick={()=>abortRef.current?.abort()}>解析を中断</button>}{(analysis.status==="error"||analysis.status==="not_configured")&&<button className="btn" type="button" disabled={!file||!privacyConfirmed} onClick={runImageAnalysis}>再試行</button>}</div>
       </section>
 
@@ -211,6 +230,7 @@ export function EcgWorkspace() {
 
       {analysisResult&&<section className="card"><div className="cardhead"><div><div className="eyebrow">AI extraction details</div><h3>画像品質・confidence</h3></div><span className="badge">詳細解析</span></div><p><strong>モデル：</strong>{analysisResult.model??"不明"}</p><p><strong>全体confidence：</strong>{analysisResult.confidence.overall==null?"判定不能":`${Math.round(analysisResult.confidence.overall*100)}%`}</p><div className="grid2">{findings.map(({key,label})=><div className="lead" key={key}><span className="muted">{label}</span><br/><strong>{review[key].confidence==null?"判定不能":`${Math.round(review[key].confidence!*100)}%`}</strong></div>)}</div><SimpleList items={[...analysisResult.imageQuality.limitations,...analysisResult.limitations]}/></section>}
 
+      {analysisResult?.fieldIssues?.length?<section className="card"><div className="eyebrow">Partial success</div><h3>解析できなかった項目</h3><ul className="list">{analysisResult.fieldIssues.slice(0,5).map(x=><li key={`${x.field}-${x.issue}`}><code>{x.field}</code>：{x.issue}</li>)}</ul></section>:null}
       <section className="card" id="section-0">
         <div className="cardhead"><div><div className="eyebrow">Step 0</div><h3>撮影・記録品質</h3></div><span className="badge">手動チェック</span></div>
         <div className="checks">{qualityItems.map(([key,label])=><label className="check" key={key}><input type="checkbox" checked={quality[key]} onChange={e=>setQuality(q=>({...q,[key]:e.target.checked}))}/>{label}</label>)}</div>
@@ -256,6 +276,7 @@ function ClinicalResults({result,pearls}:{result:IntegratedResult;pearls:string[
 }
 
 function ResultBlock({number,title,children}:{number:string;title:string;children:React.ReactNode}) {return <section className="clinical-result-block"><header><span>{number}</span><h4>{title}</h4></header>{children}</section>}
+function AnalysisErrorDetails({error}:{error:EcgAnalysisErrorDetail}){return <section className="analysis-error-detail" aria-labelledby="analysis-error-title"><div className="eyebrow">安全なエラーコード：{error.code}</div><h4 id="analysis-error-title">解析できなかった理由</h4><p>{error.userMessage}</p>{error.fieldIssues?.length?<div><strong>不足または不正な項目</strong><ul className="list">{error.fieldIssues.slice(0,5).map(x=><li key={`${x.field}-${x.issue}`}><code>{x.field}</code>：{x.issue}</li>)}</ul></div>:null}{error.analysisLimitations?.length?<div><strong>画像上の判読制限</strong><SimpleList items={error.analysisLimitations}/></div>:null}<div><strong>改善方法</strong><SimpleList items={error.suggestedActions}/></div><p className="muted">再試行：{error.retryable?"可能":"画像または設定の変更が必要"}{error.requestId?` ／ Request ID: ${error.requestId}`:""}</p></section>}
 function SimpleList({items}:{items:string[]}) {const unique=[...new Set(items)];return unique.length?<ul className="list">{unique.map(x=><li key={x}>{x}</li>)}</ul>:<p className="muted">現時点で追加項目はありません。</p>}
 function planPriorityKey(priority:number){return priority<=1?"urgent":priority<=3?"early":"conditional"}
 function planPriorityLabel(priority:number){return priority<=1?"緊急":priority<=3?"早め":"状況次第"}
