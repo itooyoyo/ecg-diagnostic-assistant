@@ -52,3 +52,48 @@ test("advanced analysis is closed by default and mobile UI stacks without overfl
   assert.doesNotMatch(source, /<details className="advanced-analysis" open/);
   assert.match(css, /@media\(max-width:720px\).*\.finding-editor\{grid-template-columns:1fr\}/s);
 });
+
+test("image upload supports selection, drop, preview, removal and exact image MIME types", async()=>{
+  const source=await readFile(workspacePath,"utf8");
+  assert.match(source,/accept="image\/jpeg,image\/png,image\/webp"/);
+  for(const handler of ["onDragEnter","onDragOver","onDragLeave","onDrop"])assert.match(source,new RegExp(handler));
+  assert.match(source,/handleSelectedFile\(e\.dataTransfer\.files\[0\]/);
+  assert.match(source,/alt="選択した心電図画像のプレビュー"/);
+  assert.match(source,/URL\.createObjectURL/);
+  assert.match(source,/URL\.revokeObjectURL/);
+  assert.match(source,/function removeImage/);
+});
+
+test("analysis workflow calls the adapter, prevents duplicate submission and supports abort",async()=>{
+  const source=await readFile(workspacePath,"utf8");
+  assert.match(source,/async function runImageAnalysis/);
+  assert.match(source,/if\(!file\|\|isBusy/);
+  assert.match(source,/new AbortController/);
+  assert.match(source,/adapter\.analyze\(file/);
+  assert.match(source,/abortRef\.current\?\.abort/);
+});
+
+test("unconfigured API and mock mode are explicitly separated",async()=>{
+  const [source,route,adapter]=await Promise.all([readFile(workspacePath,"utf8"),readFile(new URL("../app/api/ecg/analyze/route.ts",import.meta.url),"utf8"),readFile(new URL("../lib/ecg-image/image-analysis-adapter.ts",import.meta.url),"utf8")]);
+  assert.match(source,/NEXT_PUBLIC_ENABLE_ECG_MOCK_ANALYSIS/);
+  assert.match(source,/デモ解析/);
+  assert.match(route,/errorResponse\(501/);
+  assert.match(route,/ANALYSIS_NOT_CONFIGURED/);
+  assert.match(adapter,/FormData/);
+  assert.doesNotMatch(adapter,/catch[^{]*\{[^}]*MockEcgImageAnalysisAdapter/s);
+});
+
+test("normal findings stay hidden before successful image analysis",async()=>{
+  const source=await readFile(workspacePath,"utf8");
+  assert.match(source,/aiValue:"未解析"/);
+  assert.match(source,/analysis\.status!=="success"/);
+  assert.match(source,/画像解析後に表示されます/);
+  assert.doesNotMatch(source,/ai:"72 bpm"/);
+});
+
+test("real analysis requires anonymization confirmation and mobile preview stacks",async()=>{
+  const [source,css]=await Promise.all([readFile(workspacePath,"utf8"),readFile(cssPath,"utf8")]);
+  assert.match(source,/!demoMode&&!privacyConfirmed/);
+  assert.match(source,/患者氏名・IDなどの識別情報/);
+  assert.match(css,/@media\(max-width:720px\).*\.upload-preview\{grid-template-columns:1fr\}/s);
+});

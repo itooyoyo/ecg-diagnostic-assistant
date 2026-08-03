@@ -13,3 +13,16 @@ export type ObjectiveFindings = {
 };
 export type ReviewedFinding<T=string> = { aiValue:T; clinicianValue:T|null; status:ReviewStatus };
 export type EvidenceSource = { sourceOrganization:"JCS"|"JHRS"|"AHA/ACC/HRS"|"ESC"; sourceTitle:string; publicationYear:number; section:string; url:string; evidenceType:"guideline"|"statement"|"peer-reviewed" };
+export type AnalysisStatus="idle"|"file_selected"|"uploading"|"analyzing"|"success"|"error"|"not_configured";
+export type EcgImageAnalysisResult={
+  analysisId:string;
+  source:"real_ai"|"mock";
+  model?:string;
+  extractedAt:string;
+  imageQuality:{analyzable:boolean|null;limitations:string[]};
+  measurements:{heartRateBpm:number|null;rhythm:string|null;prMs:number|null;qrsMs:number|null;qtMs:number|null;qtcMs:number|null;axisDegrees:number|null};
+  findings:{pWave:unknown;qrs:unknown;st:unknown;tWave:unknown;uWave:unknown;ectopy:unknown;rWaveProgression?:unknown;qWave?:unknown;leadPlacement?:unknown;regularity?:unknown};
+  confidence:{overall:number|null;perField:Record<string,number|null>};
+  limitations:string[];
+};
+export type AnalysisProcessState={status:AnalysisStatus;progressMessage:string;errorMessage:string|null;startedAt:string|null;completedAt:string|null};
