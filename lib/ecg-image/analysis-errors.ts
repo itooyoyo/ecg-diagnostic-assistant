@@ -1,4 +1,4 @@
-import type { EcgAnalysisErrorCode, EcgAnalysisErrorDetail, EcgAnalysisFieldIssue } from "@/types/ecg";
+import type { EcgAnalysisErrorCode, EcgAnalysisErrorDetail, EcgAnalysisFieldIssue, EcgOpenAIDebugInfo } from "@/types/ecg";
 
 const actions:Partial<Record<EcgAnalysisErrorCode,string[]>>={
   INVALID_FILE:["JPEG、PNG、WebPの画像を選択してください"],FILE_TOO_LARGE:["20MB以下の画像を選択してください"],UNSUPPORTED_MEDIA_TYPE:["JPEG、PNG、WebPの画像を選択してください"],
@@ -13,13 +13,17 @@ const actions:Partial<Record<EcgAnalysisErrorCode,string[]>>={
   PROVIDER_RATE_LIMITED:["時間をおいてもう一度解析してください"],
   ANALYSIS_TIMEOUT:["画像を切り抜いて容量を小さくしてください","もう一度解析してください"],
   ANALYSIS_NOT_CONFIGURED:["管理者に画像解析サービスの設定を依頼してください"],
+  PROVIDER_AUTHENTICATION_FAILED:["管理者にOpenAI APIの認証設定確認を依頼してください"],
+  PROVIDER_REQUEST_INVALID:["管理者に画像解析リクエスト設定の確認を依頼してください"],
+  MODEL_NOT_AVAILABLE:["管理者に画像解析モデル設定の確認を依頼してください"],
+  MODEL_ACCESS_DENIED:["管理者に画像解析モデルのアクセス権限確認を依頼してください"],
   PROVIDER_UNAVAILABLE:["時間をおいてもう一度解析してください"],
 };
 
-export function makeAnalysisError(code:EcgAnalysisErrorCode,userMessage:string,options:{retryable?:boolean;fieldIssues?:EcgAnalysisFieldIssue[];analysisLimitations?:string[];requestId?:string;suggestedActions?:string[]}={}):EcgAnalysisErrorDetail{
-  return {code,userMessage,retryable:options.retryable??false,suggestedActions:options.suggestedActions??actions[code]??["画像を確認し、必要に応じて切り抜きまたは別画像を選択してください"],fieldIssues:options.fieldIssues?.slice(0,5),analysisLimitations:options.analysisLimitations,requestId:options.requestId};
+export function makeAnalysisError(code:EcgAnalysisErrorCode,userMessage:string,options:{retryable?:boolean;fieldIssues?:EcgAnalysisFieldIssue[];analysisLimitations?:string[];requestId?:string;suggestedActions?:string[];debug?:EcgOpenAIDebugInfo;providerStatus?:number;providerCode?:string;providerType?:string;providerRequestId?:string;stage?:string}={}):EcgAnalysisErrorDetail{
+  return {code,userMessage,retryable:options.retryable??false,suggestedActions:options.suggestedActions??actions[code]??["画像を確認し、必要に応じて切り抜きまたは別画像を選択してください"],fieldIssues:options.fieldIssues?.slice(0,5),analysisLimitations:options.analysisLimitations,requestId:options.requestId,debug:process.env.NODE_ENV==="development"?options.debug:undefined,providerStatus:options.providerStatus,providerCode:options.providerCode,providerType:options.providerType,providerRequestId:options.providerRequestId,stage:options.stage};
 }
 
 export function publicErrorDetail(error:EcgAnalysisErrorDetail):EcgAnalysisErrorDetail{
-  return {...error,fieldIssues:error.fieldIssues?.slice(0,5),requestId:error.requestId?.slice(0,64)};
+  return {...error,fieldIssues:error.fieldIssues?.slice(0,5),requestId:error.requestId?.slice(0,64),debug:process.env.NODE_ENV==="development"?error.debug:undefined};
 }

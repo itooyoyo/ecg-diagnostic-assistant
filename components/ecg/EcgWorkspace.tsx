@@ -48,7 +48,7 @@ import type { SgarbossaInput } from "@/types/sgarbossa-interpretation";
 import { createDefaultSgarbossaInput } from "@/data/sgarbossa/defaults.js";
 import { interpretSgarbossa } from "@/logic/sgarbossa/interpret-sgarbossa.js";
 import { SgarbossaModule } from "@/components/interpretation/SgarbossaModule";
-import type { AnalysisProcessState, EcgAnalysisErrorDetail, EcgImageAnalysisResult } from "@/types/ecg";
+import type { AnalysisProcessState, EcgAnalysisErrorDetail, EcgImageAnalysisResult, EcgOpenAIDebugInfo } from "@/types/ecg";
 
 const qualityItems = [
   ["allLeads","12誘導がすべて写っている"],["leadLabels","誘導名が読める"],["waveformsComplete","波形が途中で切れていない"],
@@ -250,6 +250,7 @@ export function EcgWorkspace() {
       </section>
         <SgarbossaModule input={integratedSgarbossaInput} result={sgarbossaResult} onChange={(next)=>{setSgarbossaInput(next);setStInput(current=>({...current,leadMeasurements:current.leadMeasurements.map(m=>{const s=next.leadMeasurements.find(x=>x.lead===m.lead);return s?{...m,direction:s.stDirection==="none"?"isoelectric":s.stDirection,amplitudeMm:s.stDeviationMm,clinicianConfirmed:s.clinicianConfirmed}:m})}))}}/>
       </div></details>
+      {process.env.NODE_ENV==="development"&&(analysisResult?.debug||analysis.errorDetail?.debug)&&<OpenAIDebugPanel debug={analysisResult?.debug??analysis.errorDetail?.debug}/>}
     </main>
     <aside className="right">
       <NavigatorCard className="navigator-card--desktop" state={navigatorState} comment={navigatorComment}/>
@@ -277,6 +278,7 @@ function ClinicalResults({result,pearls}:{result:IntegratedResult;pearls:string[
 
 function ResultBlock({number,title,children}:{number:string;title:string;children:React.ReactNode}) {return <section className="clinical-result-block"><header><span>{number}</span><h4>{title}</h4></header>{children}</section>}
 function AnalysisErrorDetails({error}:{error:EcgAnalysisErrorDetail}){return <section className="analysis-error-detail" aria-labelledby="analysis-error-title"><div className="eyebrow">安全なエラーコード：{error.code}</div><h4 id="analysis-error-title">解析できなかった理由</h4><p>{error.userMessage}</p>{error.fieldIssues?.length?<div><strong>不足または不正な項目</strong><ul className="list">{error.fieldIssues.slice(0,5).map(x=><li key={`${x.field}-${x.issue}`}><code>{x.field}</code>：{x.issue}</li>)}</ul></div>:null}{error.analysisLimitations?.length?<div><strong>画像上の判読制限</strong><SimpleList items={error.analysisLimitations}/></div>:null}<div><strong>改善方法</strong><SimpleList items={error.suggestedActions}/></div><p className="muted">再試行：{error.retryable?"可能":"画像または設定の変更が必要"}{error.requestId?` ／ Request ID: ${error.requestId}`:""}</p></section>}
+function OpenAIDebugPanel({debug}:{debug:EcgOpenAIDebugInfo|undefined}){if(!debug)return null;const rows:[[string,unknown]]|Array<[string,unknown]>=[["① HTTP Status",debug.httpStatus],["② Response.status",debug.responseStatus],["③ finish reason",debug.finishReason],["④ response.outputの種類",debug.outputTypes],["⑤ response.output_text",debug.outputText],["⑥ Structured Output生成成功",debug.structuredOutputSucceeded],["⑦ JSON parse前文字列",debug.preParseText],["⑧ Schema Validation Error全文",debug.schemaValidationError],["⑨ OpenAI SDK Error全文",debug.sdkError],["⑩ Rate limit",debug.rateLimited],["⑪ Timeout",debug.timedOut],["⑫ Refusal",debug.refusal],["⑬ Incomplete",debug.incomplete],["⑭ Token不足",debug.tokenLimitExceeded]];return <details className="card openai-debug"><summary>OpenAI Raw Response（開発モードのみ）</summary><div className="openai-debug__body"><dl>{rows.map(([label,value])=><div key={label}><dt>{label}</dt><dd><pre>{typeof value==="string"?value:JSON.stringify(value,null,2)}</pre></dd></div>)}</dl><h4>Raw Response</h4><pre>{debug.rawResponse??"取得なし"}</pre></div></details>}
 function SimpleList({items}:{items:string[]}) {const unique=[...new Set(items)];return unique.length?<ul className="list">{unique.map(x=><li key={x}>{x}</li>)}</ul>:<p className="muted">現時点で追加項目はありません。</p>}
 function planPriorityKey(priority:number){return priority<=1?"urgent":priority<=3?"early":"conditional"}
 function planPriorityLabel(priority:number){return priority<=1?"緊急":priority<=3?"早め":"状況次第"}

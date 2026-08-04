@@ -9,6 +9,8 @@ const cropper=fs.readFileSync("components/ecg/EcgImageCropper.tsx","utf8");
 const processing=fs.readFileSync("lib/ecg-image/client-image-processing.ts","utf8");
 const css=fs.readFileSync("app/globals.css","utf8");
 const types=fs.readFileSync("types/ecg.ts","utf8");
+const service=fs.readFileSync("lib/ecg-image/server/ecg-image-analysis-service.ts","utf8");
+const adapter=fs.readFileSync("lib/ecg-image/image-analysis-adapter.ts","utf8");
 
 const cases=[
   ["empty provider response",provider,"EMPTY_MODEL_RESPONSE"],
@@ -16,7 +18,7 @@ const cases=[
   ["missing schema field",provider,"SCHEMA_VALIDATION_FAILED"],
   ["invalid enum or field issue is safe",provider,"fieldIssues"],
   ["partial invalid measurement is classified",types,"INVALID_MEASUREMENT_VALUE"],
-  ["large structural failure remains an error",provider,"必須構造"],
+  ["large structural failure remains an error",provider,"STRUCTURED_OUTPUT_FAILED"],
   ["provider refusal",provider,"MODEL_REFUSAL"],
   ["provider incomplete output",provider,"MODEL_OUTPUT_INCOMPLETE"],
   ["timeout",provider,"ANALYSIS_TIMEOUT"],
@@ -43,3 +45,18 @@ const cases=[
   ["legacy clinical tests remain part of CI",fs.readFileSync("package.json","utf8"),"tests/*.test.mjs"],
 ];
 for(const [name,source,needle] of cases)test(name,()=>assert.ok(source.includes(needle),`missing ${needle}`));
+
+const diagnostics=["① HTTP Status","② Response.status","③ finish reason","④ response.output types","⑤ response.output_text","⑥ Structured Output generated","⑦ pre-JSON-parse text","⑧ Schema Validation Error","⑨ OpenAI SDK Error","⑩ Rate limit","⑪ Timeout","⑫ Refusal","⑬ Incomplete","⑭ Token limit"];
+for(const label of diagnostics)test(`development diagnostics include ${label}`,()=>assert.ok(provider.includes(label)));
+test("HTTP status is captured through SDK withResponse",()=>assert.ok(provider.includes("withResponse()")&&provider.includes("httpResponse.status")));
+test("raw response UI is development-only",()=>assert.ok(workspace.includes('process.env.NODE_ENV==="development"')&&workspace.includes("OpenAI Raw Response（開発モードのみ）")));
+test("generic ANALYSIS_FAILED is not used by the API pipeline",()=>assert.ok(!provider.includes('"ANALYSIS_FAILED"')&&!route.includes('"ANALYSIS_FAILED"')));
+for(const code of ["PROVIDER_AUTHENTICATION_FAILED","PROVIDER_REQUEST_INVALID","MODEL_NOT_AVAILABLE","MODEL_ACCESS_DENIED","PROVIDER_RATE_LIMITED","ANALYSIS_TIMEOUT","EMPTY_MODEL_RESPONSE","MODEL_REFUSAL","MODEL_OUTPUT_INCOMPLETE","INVALID_JSON","SCHEMA_VALIDATION_FAILED"]){
+  test(`specific provider failure is retained: ${code}`,()=>assert.ok(provider.includes(`"${code}"`)));
+}
+test("requestId crosses route, service, and provider",()=>assert.ok(route.includes("signal:request.signal,requestId")&&service.includes("requestId?:string")&&provider.includes("const requestId=options?.requestId")));
+test("production diagnostics are explicitly gated",()=>assert.ok(provider.includes('process.env.ECG_ANALYSIS_DIAGNOSTICS==="true"')));
+test("diagnostic metadata excludes image and output text bodies",()=>{const logger=provider.slice(provider.indexOf("function logErrorDiagnostic"));assert.ok(logger.includes("durationMs"));assert.ok(!logger.includes("base64"));assert.ok(!logger.includes("outputText:"));});
+test("diagnostic response records only output presence and length",()=>assert.ok(provider.includes("outputTextPresent")&&provider.includes("outputTextLength")));
+test("schema diagnostics retain field names",()=>assert.ok(provider.includes("schemaValidationFields:detail.fieldIssues?.map(issue=>issue.field)")));
+test("mock confidence contains every strict schema key",()=>{for(const key of ["heartRate","rhythm","pWave","pr","qrs","axis","rwave","qWave","st","tWave","uWave","qtc","pvc","rOnT","bundleBranchBlock","placement","regularity"])assert.ok(adapter.includes(`${key}:null`),`missing mock confidence ${key}`)});

@@ -17,12 +17,13 @@ export async function POST(request:Request){
   if(!service)return errorResponse(501,makeAnalysisError("ANALYSIS_NOT_CONFIGURED","画像解析サービスが設定されていません。",{requestId}));
   const bytes=new Uint8Array(await image.arrayBuffer());
   try{
-    const result=await service.analyze({bytes,mimeType:image.type as "image/jpeg"|"image/png"|"image/webp"},{signal:request.signal});
+    const result=await service.analyze({bytes,mimeType:image.type as "image/jpeg"|"image/png"|"image/webp"},{signal:request.signal,requestId});
     return Response.json({ok:true,...result},{headers:responseHeaders(requestId)});
   }catch(error){
     if(error instanceof DOMException&&error.name==="AbortError")return errorResponse(499,makeAnalysisError("USER_CANCELLED","画像解析を中断しました。",{requestId}));
     if(error instanceof ECGImageAnalysisServiceError)return errorResponse(error.status,{...error.detail,requestId});
-    return errorResponse(500,makeAnalysisError("ANALYSIS_FAILED","画像解析に失敗しました。",{requestId}));
+    if(process.env.NODE_ENV==="development")console.error("[ECG Analysis] Unexpected route error",error);
+    return errorResponse(500,makeAnalysisError("UNEXPECTED_SERVER_ERROR","解析APIで予期しない内部エラーが発生しました。",{requestId}));
   }finally{bytes.fill(0)}
 }
 

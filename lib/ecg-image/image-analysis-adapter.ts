@@ -11,9 +11,9 @@ export class ApiEcgImageAnalysisAdapter implements EcgImageAnalysisAdapter{
     try{response=await fetch("/api/ecg/analyze",{method:"POST",body,signal:options?.signal})}
     catch(error){if(error instanceof DOMException&&error.name==="AbortError")throw error;throw new EcgAnalysisError({code:"PROVIDER_UNAVAILABLE",userMessage:"画像解析サービスへ接続できませんでした。",retryable:true,suggestedActions:["通信状態を確認して、もう一度解析してください"]})}
     let payload:unknown;
-    try{payload=await response.json()}catch{throw new EcgAnalysisError({code:"ANALYSIS_FAILED",userMessage:"解析サービスから不正な応答が返されました。",retryable:true,suggestedActions:["もう一度解析してください"]},response.status)}
-    if(!response.ok){const detail=(payload as {error?:EcgAnalysisErrorDetail})?.error;throw new EcgAnalysisError(detail??{code:"ANALYSIS_FAILED",userMessage:"画像解析に失敗しました。",retryable:true,suggestedActions:["もう一度解析してください"]},response.status)}
-    if(!isAnalysisResult(payload))throw new EcgAnalysisError({code:"ANALYSIS_FAILED",userMessage:"解析結果の形式を確認できませんでした。",retryable:true,suggestedActions:["もう一度解析してください"]},response.status);
+    try{payload=await response.json()}catch{throw new EcgAnalysisError({code:"INVALID_JSON",userMessage:"解析APIからJSON形式を取得できませんでした。",retryable:true,suggestedActions:["もう一度解析してください"]},response.status)}
+    if(!response.ok){const detail=(payload as {error?:EcgAnalysisErrorDetail})?.error;throw new EcgAnalysisError(detail??{code:"UNEXPECTED_SERVER_ERROR",userMessage:"解析APIのエラー形式を確認できませんでした。",retryable:true,suggestedActions:["もう一度解析してください"]},response.status)}
+    if(!isAnalysisResult(payload))throw new EcgAnalysisError({code:"STRUCTURED_OUTPUT_FAILED",userMessage:"Structured Outputの結果形式を確認できませんでした。",retryable:true,suggestedActions:["もう一度解析してください"]},response.status);
     return payload;
   }
 }
@@ -22,7 +22,7 @@ export class ApiEcgImageAnalysisAdapter implements EcgImageAnalysisAdapter{
 export class MockEcgImageAnalysisAdapter implements EcgImageAnalysisAdapter{
   async analyze(_file:File,options?:EcgImageAnalysisOptions):Promise<EcgImageAnalysisResult>{
     if(options?.signal?.aborted)throw new DOMException("Aborted","AbortError");
-    return {analysisId:`demo-${Date.now()}`,source:"mock",model:"explicit-demo-fixture-v1",extractedAt:new Date().toISOString(),imageQuality:{analyzable:true,limitations:["テスト専用モックです"]},measurements:{heartRateBpm:72,rhythm:"洞調律（デモ）",prMs:164,qrsMs:92,qtMs:388,qtcMs:425,axisDegrees:45},findings:{pWave:"各QRSに先行",qrs:"明らかな異常なし",st:"明らかな変化なし",tWave:"明らかな異常なし",uWave:"判定困難",ectopy:"なし",pvc:"なし",rOnT:"なし",bundleBranchBlock:"なし",rWaveProgression:"保たれる",qWave:"病的Q波なし",leadPlacement:"明らかな異常なし",regularity:"整"},confidence:{overall:null,perField:{}},limitations:["実画像解析結果ではありません"]};
+    return {analysisId:`demo-${Date.now()}`,source:"mock",model:"explicit-demo-fixture-v1",extractedAt:new Date().toISOString(),imageQuality:{analyzable:true,limitations:["テスト専用モックです"]},measurements:{heartRateBpm:72,rhythm:"洞調律（デモ）",prMs:164,qrsMs:92,qtMs:388,qtcMs:425,axisDegrees:45},findings:{pWave:"各QRSに先行",qrs:"明らかな異常なし",st:"明らかな変化なし",tWave:"明らかな異常なし",uWave:"判定困難",ectopy:"なし",pvc:"なし",rOnT:"なし",bundleBranchBlock:"なし",rWaveProgression:"保たれる",qWave:"病的Q波なし",leadPlacement:"明らかな異常なし",regularity:"整"},confidence:{overall:null,perField:{heartRate:null,rhythm:null,pWave:null,pr:null,qrs:null,axis:null,rwave:null,qWave:null,st:null,tWave:null,uWave:null,qtc:null,pvc:null,rOnT:null,bundleBranchBlock:null,placement:null,regularity:null}},limitations:["実画像解析結果ではありません"]};
   }
 }
 function isAnalysisResult(value:unknown):value is EcgImageAnalysisResult{if(!value||typeof value!=="object")return false;const x=value as Partial<EcgImageAnalysisResult>;return typeof x.analysisId==="string"&&(x.source==="real_ai"||x.source==="mock")&&typeof x.extractedAt==="string"&&Boolean(x.measurements)&&Boolean(x.findings)&&Boolean(x.confidence)&&Array.isArray(x.limitations)}
