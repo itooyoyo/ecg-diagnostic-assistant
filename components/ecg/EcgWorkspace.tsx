@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { validateEcgFile } from "@/lib/ecg-image/image-parser";
-import { ApiEcgImageAnalysisAdapter, EcgAnalysisError } from "@/lib/ecg-image/image-analysis-adapter";
+import { EcgAnalysisError } from "@/lib/ecg-image/image-analysis-adapter";
+import { OnnxLocalEcgImageAnalysisAdapter, type LocalSupport } from "@/lib/ecg-image/local-ecg-image-analysis-adapter";
 import { EcgImageCropper } from "@/components/ecg/EcgImageCropper";
 import { compressEcgImageForUpload, type CropRect, type EcgUploadImage } from "@/lib/ecg-image/client-image-processing";
 import { ABSOLUTE_UPLOAD_BYTES, TARGET_UPLOAD_BYTES } from "@/lib/ecg-image/upload-limits";
@@ -49,7 +50,7 @@ import type { SgarbossaInput } from "@/types/sgarbossa-interpretation";
 import { createDefaultSgarbossaInput } from "@/data/sgarbossa/defaults.js";
 import { interpretSgarbossa } from "@/logic/sgarbossa/interpret-sgarbossa.js";
 import { SgarbossaModule } from "@/components/interpretation/SgarbossaModule";
-import type { AnalysisProcessState, EcgAnalysisErrorDetail, EcgImageAnalysisResult, EcgOpenAIDebugInfo } from "@/types/ecg";
+import type { AnalysisProcessState, EcgAnalysisErrorDetail, EcgImageAnalysisResult } from "@/types/ecg";
 
 const qualityItems = [
   ["allLeads","12誘導がすべて写っている"],["leadLabels","誘導名が読める"],["waveformsComplete","波形が途中で切れていない"],
@@ -64,10 +65,11 @@ const findings = [
   {key:"rwave",label:"R波進行"},{key:"qWave",label:"Q波"},{key:"st",label:"ST変化"},
   {key:"tWave",label:"T波"},{key:"uWave",label:"U波"},{key:"qtc",label:"QT / QTc"},
   {key:"pvc",label:"PVC"},{key:"rOnT",label:"R on T候補"},{key:"bundleBranchBlock",label:"脚ブロック候補"},
+  {key:"avBlock",label:"房室ブロック"},{key:"pacing",label:"ペーシング"},
   {key:"placement",label:"電極装着異常"},{key:"regularity",label:"規則性"},
 ];
 type ReviewEntry={aiValue:string;clinicianValue:string;status:"accepted"|"edited"|"rejected"|"indeterminate";confidence:number|null;limitations:string[]};
-const emptyReview=()=>Object.fromEntries(findings.map(f=>[f.key,{aiValue:"未解析",clinicianValue:"",status:"indeterminate",confidence:null,limitations:[]}])) as Record<string,ReviewEntry>;
+const emptyReview=()=>Object.fromEntries(findings.map(f=>[f.key,{aiValue:"",clinicianValue:"",status:"indeterminate",confidence:null,limitations:[]}])) as Record<string,ReviewEntry>;
 const initialAnalysis:AnalysisProcessState={status:"idle",progressMessage:"画像を選択してください",errorMessage:null,startedAt:null,completedAt:null};
 
 export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
@@ -99,6 +101,8 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
   const fileInputRef=useRef<HTMLInputElement|null>(null);
   const abortRef=useRef<AbortController|null>(null);
   const uploadAbortRef=useRef<AbortController|null>(null);
+  const localAdapterRef=useRef(new OnnxLocalEcgImageAnalysisAdapter());
+  const [localSupport,setLocalSupport]=useState<LocalSupport|null>(null);
   const isBusy=isPreparingUpload||analysis.status==="uploading"||analysis.status==="analyzing";
   const [reanalysisCount,setReanalysisCount]=useState(0);
   const confirmedValue=(key:string)=>review[key]?.status==="accepted"?review[key].aiValue:review[key]?.status==="edited"?review[key].clinicianValue:null;
@@ -167,6 +171,7 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
     return()=>controller.abort();
   },[processedFile,uploadRevision]);
   useEffect(()=>()=>{abortRef.current?.abort();uploadAbortRef.current?.abort()},[]);
+  useEffect(()=>{let active=true;localAdapterRef.current.isSupported().then(result=>{if(active)setLocalSupport(result)});return()=>{active=false}},[]);
   function resetExtractedFindings(){setAnalysisResult(null);setManualMode(false);setReview(emptyReview());setReanalysisCount(0)}
   function handleSelectedFile(next:File|null){
     if(isBusy)return;
@@ -182,16 +187,15 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
   }
   function useOriginalImage(){if(!originalFile)return;setProcessedFile(originalFile);setPreview(originalPreview);setProcessedPreview("");setCropState(null);setIsCropping(false);setPrivacyConfirmed(false);resetExtractedFindings();setAnalysis({...initialAnalysis,status:"file_selected",progressMessage:"元画像から解析用画像を準備します"})}
   function confirmCrop(processed:File,crop:CropRect){const url=URL.createObjectURL(processed);setProcessedFile(processed);setProcessedPreview(url);setPreview(url);setCropState(crop);setIsCropping(false);setPrivacyConfirmed(false);resetExtractedFindings();setAnalysis({...initialAnalysis,status:"file_selected",progressMessage:"切り抜き画像を軽量化します"})}
-  function continueManually(){setManualMode(true);setAnalysisResult(null);setReview(emptyReview());setAnalysis({...initialAnalysis,status:"success",progressMessage:"画像AI解析未実施：医師の手入力で続行中",completedAt:new Date().toISOString()});requestAnimationFrame(()=>document.getElementById("quick-review")?.scrollIntoView({behavior:"smooth"}))}
-  async function runImageAnalysis(){
+  function continueManually(){setManualMode(true);setAnalysisResult(null);setReview(emptyReview());setAnalysis({...initialAnalysis,status:"success",progressMessage:"ローカル自動抽出未実施：医師入力で続行中",completedAt:new Date().toISOString()});requestAnimationFrame(()=>document.getElementById("quick-review")?.scrollIntoView({behavior:"smooth"}))}
+  async function runLocalAnalysis(){
     if(!uploadFile||isBusy||!privacyConfirmed||uploadFile.size>ABSOLUTE_UPLOAD_BYTES)return;
     const controller=new AbortController();abortRef.current=controller;let timedOut=false;
     const timeout=window.setTimeout(()=>{timedOut=true;controller.abort()},90000);
     setAnalysis({status:"uploading",progressMessage:"画像を準備しています",errorMessage:null,startedAt:new Date().toISOString(),completedAt:null});
     try{
       await Promise.resolve();setAnalysis(x=>({...x,status:"analyzing",progressMessage:"心電図所見を抽出しています"}));
-      const adapter=new ApiEcgImageAnalysisAdapter();
-      const result=await adapter.analyze(uploadFile,{signal:controller.signal});
+      const result=await localAdapterRef.current.analyze(uploadFile,{signal:controller.signal});
       setAnalysisResult(result);setReview(reviewFromAnalysis(result));
       setAnalysis(x=>({...x,status:"success",progressMessage:"解析結果を医師が確認してください",completedAt:new Date().toISOString()}));
       requestAnimationFrame(()=>document.getElementById("quick-review")?.scrollIntoView({behavior:"smooth"}));
@@ -207,35 +211,36 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
     <aside className="side">
       <div className="brand"><NavigatorRobot variant="icon" state={navigatorState}/><div><div className="eyebrow">Medical AI</div><h1>ECG Diagnostic Assistant</h1></div></div>
       <nav className="nav"><a className="active" href="#quick-upload">01　画像</a><a href="#quick-review">02　所見修正</a><a href="#clinical-results">03　結果</a></nav>
-      <div className="privacy">NO PERSISTENT STORAGE<br/>画像は保存しません。解析時のみ設定済みAIサービスへ一時送信します</div>
+      <div className="privacy">LOCAL-ONLY IMAGE FLOW<br/>画像処理と所見入力はこの端末内で行われ、外部サービスへ送信しません</div>
     </aside>
     <main className="main">
-      <header className="topbar"><div><div className="eyebrow">Cardiac navigation console</div><h2>心電図読影・対応支援ツール</h2><p className="subtitle">心電図を読むだけでなく、次の行動まで導く</p></div><span className="badge">Ver. 0.1 / IMAGE ANALYSIS</span></header>
+      <header className="topbar"><div><div className="eyebrow">Cardiac navigation console</div><h2>心電図読影・対応支援ツール</h2><p className="subtitle">画像処理と所見入力はこの端末内で行われます</p></div><span className="badge">LOCAL MODE</span></header>
       <NavigatorCard className="navigator-card--mobile" state={navigatorState} comment={navigatorComment}/>
       <div className="steps compact-steps">{["画像アップロード","AI抽出所見の確認・修正","診断・対応"].map((s,i)=><span className={`step ${i===0?"on":""}`} key={s}>STEP {i+1} · {s}</span>)}</div>
 
       <section className="card workflow-card" id="quick-upload"><div className="cardhead"><div><div className="eyebrow">Step 1</div><h3>心電図画像アップロード</h3></div><span className="badge">画像は永続保存しません</span></div>
+        <div className="local-analysis-status" role="status"><strong>{localSupport==null?"ローカル実行環境を確認中":localSupport.backend==="webgpu"?"ローカルGPU解析に対応":localSupport.backend==="wasm"?"CPU解析で動作可能":"この端末ではローカル自動解析に非対応"}</strong><span>{localSupport?.supported?"検証済みモデルを利用できます":localSupport?.reason??"自動抽出モデルは準備中です"}</span></div>
         <div className={`upload-dropzone ${isDragging?"is-dragging":""}`} onDragEnter={e=>{e.preventDefault();if(!isBusy)setIsDragging(true)}} onDragOver={e=>e.preventDefault()} onDragLeave={e=>{if(e.currentTarget===e.target)setIsDragging(false)}} onDrop={e=>{e.preventDefault();setIsDragging(false);handleSelectedFile(e.dataTransfer.files[0]??null)}}>
           <strong>JPEG / PNG / WebP</strong><p className="muted">20MB以下の画像を選択、またはここへドロップしてください。</p>
           <input ref={fileInputRef} aria-label="心電図画像ファイル" type="file" accept="image/jpeg,image/png,image/webp" disabled={isBusy} onChange={e=>handleSelectedFile(e.target.files?.[0]??null)}/>
         </div>
         {isCropping&&originalFile&&originalPreview&&<EcgImageCropper file={originalFile} previewUrl={originalPreview} onCancel={()=>setIsCropping(false)} onConfirm={confirmCrop}/>}
         {processedFile&&preview&&!isCropping&&<div className="upload-actions"><button className="btn" type="button" disabled={isBusy} onClick={()=>{setIsCropping(true);setAnalysis(x=>({...x,status:"cropping",progressMessage:"切り抜き範囲を調整してください"}))}}>{cropState?"もう一度切り抜く":"画像を切り抜く"}</button>{cropState&&<button className="btn" type="button" disabled={isBusy} onClick={useOriginalImage}>元画像に戻す</button>}<span className="muted">{cropState?`回転 ${cropState.rotation}°・切り抜き後に送信サイズを調整します`:"元画像から送信サイズを調整します"}</span></div>}
-        {(fileError||uploadError)&&<><div className="error" role="alert">{fileError||uploadError}</div>{uploadError&&<div className="upload-actions"><button className="btn" type="button" onClick={()=>setIsCropping(true)} disabled={!originalFile}>切り抜きを修正</button><button className="btn" type="button" onClick={()=>setUploadRevision(x=>x+1)} disabled={!processedFile||isBusy}>画像を軽量化して再試行</button><button className="btn" type="button" onClick={()=>fileInputRef.current?.click()}>別画像を選ぶ</button><button className="btn" type="button" onClick={continueManually}>手入力で続ける</button></div>}</>}
+        {(fileError||uploadError)&&<><div className="error" role="alert">{fileError||uploadError}</div>{uploadError&&<div className="upload-actions"><button className="btn" type="button" onClick={()=>setIsCropping(true)} disabled={!originalFile}>切り抜きを修正</button><button className="btn" type="button" onClick={()=>setUploadRevision(x=>x+1)} disabled={!processedFile||isBusy}>画像を軽量化して再試行</button><button className="btn" type="button" onClick={()=>fileInputRef.current?.click()}>別画像を選ぶ</button><button className="btn" type="button" onClick={continueManually} disabled={!processedFile||!privacyConfirmed}>医師入力で続ける</button></div>}</>}
         {originalFile&&preview&&<div className="upload-preview"><div>{/* Blob URLs cannot use Next image optimization. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={uploadPreview||preview} alt="解析用として送信予定の心電図画像プレビュー"/></div><div className="upload-file-summary"><section><h4>元画像</h4><dl><div><dt>ファイル名</dt><dd>{originalFile.name}</dd></div><div><dt>元サイズ</dt><dd>{formatFileSize(originalFile.size)}</dd></div></dl></section><section><h4>解析用画像</h4>{uploadInfo?<dl><div><dt>送信サイズ</dt><dd>{formatFileSize(uploadInfo.outputBytes)}</dd></div><div><dt>画像寸法</dt><dd>{uploadInfo.outputWidth} × {uploadInfo.outputHeight} px</dd></div><div><dt>形式</dt><dd>{uploadInfo.mimeType}</dd></div><div><dt>軽量化</dt><dd>{uploadInfo.compressed?"高品質形式へ軽量化しました":"不要（元画像を維持）"}</dd></div><div><dt>品質値</dt><dd>{uploadInfo.quality??"再圧縮なし"}</dd></div></dl>:<p className="muted">{isPreparingUpload?"送信画像を準備しています…":"送信画像を準備できていません"}</p>}</section></div><div className="upload-actions"><button className="btn" type="button" disabled={isBusy} onClick={()=>fileInputRef.current?.click()}>画像を変更</button><button className="btn" type="button" disabled={isBusy} onClick={removeImage}>画像を削除</button></div></div>}
         {uploadInfo?.compressed&&<div className="result warn" role="status"><strong>画像を送信可能なサイズへ軽量化しました。</strong><br/>波形、誘導名、校正波形が判読できることを確認してください。</div>}
         <label className="privacy-confirm"><input type="checkbox" checked={privacyConfirmed} disabled={isBusy} onChange={e=>setPrivacyConfirmed(e.target.checked)}/>患者氏名・患者ID・生年月日・施設名が画像に含まれていないことを確認しました</label>
         <div className={`analysis-status analysis-status--${analysis.status}`} role="status" aria-live="polite">{isBusy&&<span className="analysis-spinner" aria-hidden="true"/>}<div><strong>{analysis.progressMessage}</strong>{analysis.errorMessage&&<p>{analysis.errorMessage}</p>}</div></div>
-        {analysis.errorDetail&&<><AnalysisErrorDetails error={analysis.errorDetail}/><div className="upload-actions"><button className="btn" type="button" onClick={()=>setIsCropping(true)} disabled={!originalFile}>切り抜きを修正</button>{analysis.errorDetail.code==="FILE_TOO_LARGE"&&<button className="btn" type="button" onClick={()=>setUploadRevision(x=>x+1)} disabled={!processedFile||isBusy}>画像を軽量化して再試行</button>}<button className="btn" type="button" onClick={useOriginalImage} disabled={!originalFile}>元画像に戻る</button><button className="btn" type="button" onClick={()=>fileInputRef.current?.click()}>別の画像を選択</button><button className="btn" type="button" onClick={continueManually}>AI解析を使わず手入力で続ける</button></div></>}
-        {manualMode&&<div className="result warn" role="status"><strong>画像AI解析未実施</strong><br/>AI所見は使用せず、医師が主要所見を手入力して既存ルールエンジンを実行します。固定のAI値は使用しません。</div>}
+        {analysis.errorDetail&&<><AnalysisErrorDetails error={analysis.errorDetail}/><div className="upload-actions"><button className="btn" type="button" onClick={()=>setIsCropping(true)} disabled={!originalFile}>切り抜きを修正</button>{analysis.errorDetail.code==="FILE_TOO_LARGE"&&<button className="btn" type="button" onClick={()=>setUploadRevision(x=>x+1)} disabled={!processedFile||isBusy}>画像を軽量化して再試行</button>}<button className="btn" type="button" onClick={useOriginalImage} disabled={!originalFile}>元画像に戻る</button><button className="btn" type="button" onClick={()=>fileInputRef.current?.click()}>別の画像を選択</button><button className="btn" type="button" onClick={continueManually} disabled={!processedFile||!privacyConfirmed}>医師入力で続ける</button></div></>}
+        {manualMode&&<div className="result warn" role="status"><strong>ローカル自動抽出モデルは未使用</strong><br/>医師が所見を入力し、端末内の既存ルールエンジンで総合評価します。固定値や疑似所見は使用しません。</div>}
         {analysisResult?.partialSuccess&&<div className="result warn" role="status"><strong>一部の項目を解析できませんでした</strong><br/>取得できた所見は表示しています。判定不能の項目を医師が確認・入力してください。</div>}
-        <div className="upload-actions"><button className="btn primary-action" type="button" disabled={!uploadFile||isBusy||uploadFile.size>ABSOLUTE_UPLOAD_BYTES||!privacyConfirmed} onClick={runImageAnalysis}>AI解析を開始</button>{isPreparingUpload&&<button className="btn" type="button" onClick={()=>uploadAbortRef.current?.abort()}>軽量化を中断</button>}{!isPreparingUpload&&(analysis.status==="uploading"||analysis.status==="analyzing")&&<button className="btn" type="button" onClick={()=>abortRef.current?.abort()}>解析を中断</button>}{(analysis.status==="error"||analysis.status==="not_configured")&&<button className="btn" type="button" disabled={!uploadFile||isBusy||uploadFile.size>ABSOLUTE_UPLOAD_BYTES||!privacyConfirmed} onClick={runImageAnalysis}>再試行</button>}</div>
+        <div className="upload-actions"><button className="btn primary-action" type="button" disabled={!processedFile||isBusy||!privacyConfirmed} onClick={continueManually}>医師入力で続ける</button><button className="btn secondary" type="button" disabled={!uploadFile||isBusy||!privacyConfirmed||!localSupport?.supported} onClick={runLocalAnalysis}>ローカル解析を開始</button>{isPreparingUpload&&<button className="btn secondary" type="button" onClick={()=>uploadAbortRef.current?.abort()}>画像処理を中断</button>}{!isPreparingUpload&&(analysis.status==="uploading"||analysis.status==="analyzing")&&<button className="btn secondary" type="button" onClick={()=>abortRef.current?.abort()}>解析を中断</button>}</div>
       </section>
 
-      <section className="card workflow-card" id="quick-review"><div className="cardhead"><div><div className="eyebrow">Step 2 · Clinician review</div><h3>AI抽出所見</h3><p className="muted">解析結果を診断として確定せず、各所見を医師が確認・修正します。</p></div><span className="badge">医師修正可能</span></div>
-        {analysis.status!=="success"?<div className="analysis-placeholder">画像解析後に表示されます</div>:<>{analysisResult?.source==="mock"&&<div className="result warn"><strong>デモ解析</strong><br/>テストfixtureによる表示であり、この実画像を解析した結果ではありません。</div>}{analysisResult&&<div className={analysisResult.imageQuality.analyzable===false?"result warn":"result"}><strong>画質：{analysisResult.imageQuality.analyzable===true?"解析可能":analysisResult.imageQuality.analyzable===false?"解析困難":"判定不能"}</strong><br/><span>{[...analysisResult.imageQuality.limitations,...analysisResult.limitations].join("、")||"解析不能理由・制限事項なし"}</span></div>}<div className="findings-review-grid">{findings.filter(f=>f.key!=="regularity").map(f=>{const entry=review[f.key];return <label className="finding-editor" key={f.key}><span><strong>{f.label}</strong><small>AI候補: {entry.aiValue}</small></span><input aria-label={`${f.label}の医師修正値（簡易フロー）`} value={entry.status==="edited"?entry.clinicianValue:entry.aiValue} onChange={e=>setReview(x=>({...x,[f.key]:{...x[f.key],status:"edited",clinicianValue:e.target.value}}))}/><select aria-label={`${f.label}の判定（簡易フロー）`} value={entry.status} onChange={e=>setReview(x=>({...x,[f.key]:{...x[f.key],status:e.target.value as ReviewEntry["status"]}}))}><option value="accepted">AI値を採用</option><option value="edited">医師修正</option><option value="rejected">除外</option><option value="indeterminate">判定不能</option></select></label>})}</div><button className="btn primary-action" type="button" onClick={()=>{setReanalysisCount(x=>x+1);requestAnimationFrame(()=>document.getElementById("clinical-results")?.scrollIntoView({behavior:"smooth"}))}}>修正所見で再解析</button><p className="muted reanalysis-status" aria-live="polite">{reanalysisCount>0?`医師修正所見で総合結果を再計算しました（${reanalysisCount}回）`:"診断候補・対応には医師確認後の所見を使用します。"}</p></>}
+      <section className="card workflow-card" id="quick-review"><div className="cardhead"><div><div className="eyebrow">Step 2 · Clinician review</div><h3>医師による所見入力</h3><p className="muted">初期値は未入力です。画像を確認して所見を入力し、既存ルールエンジンで再計算します。</p></div><span className="badge">端末内入力</span></div>
+        {analysis.status!=="success"?<div className="analysis-placeholder">画像を選択し「医師入力で続ける」を選んでください</div>:<>{analysisResult&&<div className={analysisResult.imageQuality.analyzable===false?"result warn":"result"}><strong>画質：{analysisResult.imageQuality.analyzable===true?"解析可能":analysisResult.imageQuality.analyzable===false?"解析困難":"判定不能"}</strong><br/><span>{[...analysisResult.imageQuality.limitations,...analysisResult.limitations].join("、")||"解析不能理由・制限事項なし"}</span></div>}<div className="findings-review-grid">{findings.filter(f=>f.key!=="regularity").map(f=>{const entry=review[f.key];return <label className="finding-editor" key={f.key}><span><strong>{f.label}</strong><small>{entry.aiValue?`自動抽出候補: ${entry.aiValue}`:"未入力"}</small></span><input aria-label={`${f.label}の医師入力値（簡易フロー）`} placeholder="未入力" value={entry.status==="edited"?entry.clinicianValue:entry.aiValue} onChange={e=>setReview(x=>({...x,[f.key]:{...x[f.key],status:"edited",clinicianValue:e.target.value}}))}/><select aria-label={`${f.label}の判定（簡易フロー）`} value={entry.status} onChange={e=>setReview(x=>({...x,[f.key]:{...x[f.key],status:e.target.value as ReviewEntry["status"]}}))}><option value="indeterminate">未入力／判定不能</option><option value="edited">医師入力</option><option value="accepted">自動抽出候補を採用</option><option value="rejected">除外</option></select></label>})}</div><button className="btn primary-action" type="button" onClick={()=>{setReanalysisCount(x=>x+1);requestAnimationFrame(()=>document.getElementById("clinical-results")?.scrollIntoView({behavior:"smooth"}))}}>入力所見で再計算</button><p className="muted reanalysis-status" aria-live="polite">{reanalysisCount>0?`医師入力所見で総合結果を再計算しました（${reanalysisCount}回）`:"診断候補・対応には医師が入力した所見だけを使用します。"}</p></>}
       </section>
 
       {analysis.status==="success"?<ClinicalResults result={integratedResult} pearls={[...(tachyResult?.active?tachyResult.clinicalPearls:[]),...(bradyResult.classification!=="no_bradycardia"?bradyResult.clinicalPearls:[]),...conductionResult.clinicalPearls,...(sgarbossaResult.applicability==="applicable"?sgarbossaResult.clinicalPearls:[])]}/>:<section className="card workflow-card" id="clinical-results"><div className="cardhead"><div><div className="eyebrow">Step 3 · Result</div><h3>診断・対応</h3></div></div><div className="analysis-placeholder">画像解析後に表示されます</div></section>}
@@ -266,7 +271,6 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
       </section>
         <SgarbossaModule input={integratedSgarbossaInput} result={sgarbossaResult} onChange={(next)=>{setSgarbossaInput(next);setStInput(current=>({...current,leadMeasurements:current.leadMeasurements.map(m=>{const s=next.leadMeasurements.find(x=>x.lead===m.lead);return s?{...m,direction:s.stDirection==="none"?"isoelectric":s.stDirection,amplitudeMm:s.stDeviationMm,clinicianConfirmed:s.clinicianConfirmed}:m})}))}}/>
       </div></details>
-      {process.env.NODE_ENV==="development"&&(analysisResult?.debug||analysis.errorDetail?.debug)&&<OpenAIDebugPanel debug={analysisResult?.debug??analysis.errorDetail?.debug}/>}
     </main>
     <aside className="right">
       <NavigatorCard className="navigator-card--desktop" state={navigatorState} comment={navigatorComment}/>
@@ -294,7 +298,6 @@ function ClinicalResults({result,pearls}:{result:IntegratedResult;pearls:string[
 
 function ResultBlock({number,title,children}:{number:string;title:string;children:React.ReactNode}) {return <section className="clinical-result-block"><header><span>{number}</span><h4>{title}</h4></header>{children}</section>}
 function AnalysisErrorDetails({error}:{error:EcgAnalysisErrorDetail}){return <section className="analysis-error-detail" aria-labelledby="analysis-error-title"><div className="eyebrow">安全なエラーコード：{error.code}</div><h4 id="analysis-error-title">解析できなかった理由</h4><p>{error.userMessage}</p>{error.fieldIssues?.length?<div><strong>不足または不正な項目</strong><ul className="list">{error.fieldIssues.slice(0,5).map(x=><li key={`${x.field}-${x.issue}`}><code>{x.field}</code>：{x.issue}</li>)}</ul></div>:null}{error.analysisLimitations?.length?<div><strong>画像上の判読制限</strong><SimpleList items={error.analysisLimitations}/></div>:null}<div><strong>改善方法</strong><SimpleList items={error.suggestedActions}/></div><p className="muted">再試行：{error.retryable?"可能":"画像または設定の変更が必要"}{error.requestId?` ／ Request ID: ${error.requestId}`:""}</p></section>}
-function OpenAIDebugPanel({debug}:{debug:EcgOpenAIDebugInfo|undefined}){if(!debug)return null;const rows:[[string,unknown]]|Array<[string,unknown]>=[["① HTTP Status",debug.httpStatus],["② Response.status",debug.responseStatus],["③ finish reason",debug.finishReason],["④ response.outputの種類",debug.outputTypes],["⑤ response.output_text",debug.outputText],["⑥ Structured Output生成成功",debug.structuredOutputSucceeded],["⑦ JSON parse前文字列",debug.preParseText],["⑧ Schema Validation Error全文",debug.schemaValidationError],["⑨ OpenAI SDK Error全文",debug.sdkError],["⑩ Rate limit",debug.rateLimited],["⑪ Timeout",debug.timedOut],["⑫ Refusal",debug.refusal],["⑬ Incomplete",debug.incomplete],["⑭ Token不足",debug.tokenLimitExceeded]];return <details className="card openai-debug"><summary>OpenAI Raw Response（開発モードのみ）</summary><div className="openai-debug__body"><dl>{rows.map(([label,value])=><div key={label}><dt>{label}</dt><dd><pre>{typeof value==="string"?value:JSON.stringify(value,null,2)}</pre></dd></div>)}</dl><h4>Raw Response</h4><pre>{debug.rawResponse??"取得なし"}</pre></div></details>}
 function SimpleList({items}:{items:string[]}) {const unique=[...new Set(items)];return unique.length?<ul className="list">{unique.map(x=><li key={x}>{x}</li>)}</ul>:<p className="muted">現時点で追加項目はありません。</p>}
 function planPriorityKey(priority:number){return priority<=1?"urgent":priority<=3?"early":"conditional"}
 function planPriorityLabel(priority:number){return priority<=1?"緊急":priority<=3?"早め":"状況次第"}

@@ -22,7 +22,7 @@ test("session cookie is HttpOnly",()=>assert.match(serializeHttpOnlyCookie(ECG_S
 test("production cookie is Secure",()=>{const before=process.env.NODE_ENV;process.env.NODE_ENV="production";assert.match(serializeHttpOnlyCookie(ECG_SESSION_COOKIE,"token",1800),/Secure/);process.env.NODE_ENV=before});
 test("session cookie is SameSite Strict",()=>assert.match(serializeHttpOnlyCookie(ECG_SESSION_COOKIE,"token",1800),/SameSite=Strict/));
 test("session max age is 1800",()=>assert.equal(SESSION_MAX_AGE_SECONDS,1800));
-test("unauthenticated analysis is rejected before form data and OpenAI",()=>{const verification=analyzeRoute.indexOf("const session=verifySessionToken");assert.ok(verification<analyzeRoute.indexOf("request.formData"));assert.ok(verification<analyzeRoute.indexOf("const service=createECGImageAnalysisService"))});
+test("unauthenticated retired analysis route is rejected before 410",()=>{const verification=analyzeRoute.indexOf("const session=verifySessionToken");assert.ok(verification<analyzeRoute.indexOf("errorResponse(410"));assert.doesNotMatch(analyzeRoute,/request\.formData|createECGImageAnalysisService/)});
 test("expired cookie reports expired",()=>{const token=createSessionToken(secret,0,"sid");assert.equal(verifySessionToken(token,secret,1801_000).status,"expired")});
 test("tampered cookie is rejected",()=>{const token=createSessionToken(secret,0,"sid");assert.equal(verifySessionToken(`${token}x`,secret,1).status,"invalid")});
 test("valid cookie permits a session",()=>assert.equal(verifySessionToken(createSessionToken(secret,0,"sid"),secret,1).status,"valid"));
@@ -30,7 +30,7 @@ test("logout deletes the session cookie",()=>{assert.match(logoutRoute,/ECG_SESS
 test("fifth PIN failure activates lock",()=>{assert.match(rateLimits,/count>=5/);assert.match(pinRoute,/PIN_LOCKED/)});
 test("successful PIN resets failure state",()=>assert.match(pinRoute,/resetPinFailures\(key\)/));
 test("analysis cooldown is ten seconds",()=>assert.equal(ANALYSIS_COOLDOWN_SECONDS,10));
-test("duplicate analysis is rejected before provider construction",()=>assert.ok(analyzeRoute.indexOf("const reservation=reserveAnalysis")<analyzeRoute.indexOf("const service=createECGImageAnalysisService")));
+test("retired analysis route cannot construct a provider",()=>{assert.match(analyzeRoute,/errorResponse\(410/);assert.doesNotMatch(analyzeRoute,/service\.analyze|OpenAI/)});
 test("unauthenticated screen does not render ECG workspace",()=>assert.match(authGate,/if\(authenticated\).*EcgWorkspace/s));
 test("authenticated screen renders ECG workspace",()=>assert.match(authGate,/<EcgWorkspace onAuthRequired/));
 test("PIN value is not written to auth logs",()=>{assert.match(pinRoute,/console\.warn\("\[ECG Auth\] failed",\{requestId,locked:/);assert.match(pinRoute,/console\.info\("\[ECG Auth\] success",\{requestId,locked:false\}/);assert.doesNotMatch(pinRoute,/console\.(?:info|warn|error)\([^\n]*\{[^\n]*(?:config\.pin|\bpin\b|\bbody\b)/)});

@@ -21,7 +21,7 @@ export type EcgAnalysisErrorCode =
   | "MODEL_REFUSAL" | "EMPTY_MODEL_RESPONSE" | "MODEL_OUTPUT_INCOMPLETE" | "INVALID_JSON"
   | "STRUCTURED_OUTPUT_FAILED" | "SCHEMA_VALIDATION_FAILED" | "INVALID_MEASUREMENT_VALUE" | "TOKEN_LIMIT_EXCEEDED" | "PROVIDER_RATE_LIMITED"
   | "ANALYSIS_TIMEOUT" | "ANALYSIS_NOT_CONFIGURED" | "PROVIDER_AUTHENTICATION_FAILED" | "PROVIDER_REQUEST_INVALID"
-  | "MODEL_NOT_AVAILABLE" | "MODEL_ACCESS_DENIED" | "PROVIDER_UNAVAILABLE" | "UNEXPECTED_SERVER_ERROR" | "USER_CANCELLED";
+  | "MODEL_NOT_AVAILABLE" | "LOCAL_MODEL_NOT_AVAILABLE" | "MODEL_ACCESS_DENIED" | "PROVIDER_UNAVAILABLE" | "UNEXPECTED_SERVER_ERROR" | "USER_CANCELLED";
 export type EcgAnalysisFieldIssue={field:string;issue:string};
 export type EcgOpenAIDebugInfo={
   httpStatus:number|null;responseStatus:string|null;finishReason:string|null;outputTypes:string[];
@@ -36,7 +36,7 @@ export type EcgAnalysisErrorDetail={
 };
 export type EcgImageAnalysisResult={
   analysisId:string;
-  source:"real_ai"|"mock";
+  source:"local"|"real_ai"|"mock";
   model?:string;
   extractedAt:string;
   imageQuality:{analyzable:boolean|null;limitations:string[]};

@@ -16,15 +16,19 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## ECG image analysis
+## ECG image analysis（local-only）
 
-実画像解析を有効にする場合は、リポジトリ直下の `.env.local` にサーバー専用の環境変数を設定します。APIキーに `NEXT_PUBLIC_` を付けないでください。
+通常動作は`local`モードです。画像の選択、切り抜き、回転、軽量化、プレビュー、医師入力はブラウザ内で行い、画像をVercel Functionや外部AIサービスへ送信しません。
 
 ```dotenv
-ECG_IMAGE_ANALYSIS_PROVIDER=openai
-OPENAI_API_KEY=your-server-side-api-key
-OPENAI_ECG_MODEL=gpt-5.6
+ECG_IMAGE_ANALYSIS_MODE=local
 ```
+
+検証済みローカルECGモデルは未搭載です。固定値、疑似所見、ランダム値へフォールバックせず、`LOCAL_MODEL_NOT_AVAILABLE`として医師手入力へ案内します。`/api/ecg/analyze`は移行安全策としてHTTP 410 Goneを返し、リクエスト本文や画像を読み込みません。
+
+ONNX Runtime Webを将来のブラウザ内推論基盤として組み込み、WebGPUを優先し、非対応端末ではWASM候補を表示します。モデル本体、モデル固有の前処理、出力マッピングが検証されるまでは推論結果を生成しません。
+
+Vercelに`OPENAI_API_KEY`、`OPENAI_ECG_MODEL`、`ECG_IMAGE_ANALYSIS_PROVIDER`が残っていても、ローカルモードでは使用されません。動作確認後、管理者がVercelから削除できます。コードから環境変数やAPIキーを自動削除しません。
 
 ## 限定公開PIN認証
 
@@ -43,7 +47,7 @@ ECG_AUTH_SECRET=
 - このPIN認証は管理者本人による限定公開向けです。一般公開する場合は、利用者単位の正式な認証・認可・監査を導入してください。
 - 失敗回数と同時解析のメモリ制御はVercelの各サーバーレスインスタンス内に限定されます。署名Cookieでも補完しますが、Cookie削除、別ブラウザ、複数リージョンを横断する完全な分散レート制限ではありません。一般公開時はRedis等の共有ストアを使用してください。
 
-未設定時、`POST /api/ecg/analyze` は固定結果へフォールバックせず、`ANALYSIS_NOT_CONFIGURED` を返します。実解析は公式OpenAI SDKのResponses APIとStructured Outputsを使用します。`store: false`を指定し、アップロード画像はファイルへ保存せず、解析リクエスト中だけメモリ上で扱います。
+ローカルモデル開発と臨床検証の要件は[`docs/local-ecg-model-roadmap.md`](docs/local-ecg-model-roadmap.md)を参照してください。
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

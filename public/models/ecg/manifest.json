@@ -1,0 +1,10 @@
+{
+  "modelAvailable": false,
+  "modelVersion": null,
+  "validatedForClinicalUse": false,
+  "supportedFindings": [],
+  "limitations": [
+    "検証済みローカルECGモデルは未搭載です"
+  ],
+  "modelPath": null
+}

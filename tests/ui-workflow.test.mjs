@@ -64,30 +64,28 @@ test("image upload supports selection, drop, preview, removal and exact image MI
   assert.match(source,/function removeImage/);
 });
 
-test("analysis workflow calls the adapter, prevents duplicate submission and supports abort",async()=>{
+test("local workflow calls the browser adapter and supports abort",async()=>{
   const source=await readFile(workspacePath,"utf8");
-  assert.match(source,/async function runImageAnalysis/);
+  assert.match(source,/async function runLocalAnalysis/);
   assert.match(source,/if\(!uploadFile\|\|isBusy/);
   assert.match(source,/new AbortController/);
-  assert.match(source,/adapter\.analyze\(uploadFile/);
+  assert.match(source,/localAdapterRef\.current\.analyze\(uploadFile/);
   assert.match(source,/abortRef\.current\?\.abort/);
 });
 
-test("unconfigured API and mock mode are explicitly separated",async()=>{
-  const [source,route,adapter]=await Promise.all([readFile(workspacePath,"utf8"),readFile(new URL("../app/api/ecg/analyze/route.ts",import.meta.url),"utf8"),readFile(new URL("../lib/ecg-image/image-analysis-adapter.ts",import.meta.url),"utf8")]);
-  assert.doesNotMatch(source,/MockEcgImageAnalysisAdapter|NEXT_PUBLIC_ENABLE_ECG_MOCK_ANALYSIS|demoMode/);
-  assert.match(adapter,/class MockEcgImageAnalysisAdapter/);
-  assert.match(route,/errorResponse\(501/);
-  assert.match(route,/ANALYSIS_NOT_CONFIGURED/);
-  assert.match(adapter,/FormData/);
-  assert.doesNotMatch(adapter,/catch[^{]*\{[^}]*MockEcgImageAnalysisAdapter/s);
+test("local model absence and legacy cloud code are explicitly separated",async()=>{
+  const [source,route,adapter]=await Promise.all([readFile(workspacePath,"utf8"),readFile(new URL("../app/api/ecg/analyze/route.ts",import.meta.url),"utf8"),readFile(new URL("../lib/ecg-image/local-ecg-image-analysis-adapter.ts",import.meta.url),"utf8")]);
+  assert.doesNotMatch(source,/MockEcgImageAnalysisAdapter|ApiEcgImageAnalysisAdapter|\/api\/ecg\/analyze/);
+  assert.match(adapter,/LOCAL_MODEL_NOT_AVAILABLE/);
+  assert.match(route,/errorResponse\(410/);
+  assert.doesNotMatch(route,/formData|OpenAI|service\.analyze/);
 });
 
-test("normal findings stay hidden before successful image analysis",async()=>{
+test("manual findings stay empty before physician entry",async()=>{
   const source=await readFile(workspacePath,"utf8");
-  assert.match(source,/aiValue:"未解析"/);
+  assert.match(source,/aiValue:""/);
   assert.match(source,/analysis\.status!=="success"/);
-  assert.match(source,/画像解析後に表示されます/);
+  assert.match(source,/医師入力で続ける/);
   assert.doesNotMatch(source,/ai:"72 bpm"/);
 });
 
@@ -98,25 +96,14 @@ test("real analysis requires anonymization confirmation and mobile preview stack
   assert.match(css,/@media\(max-width:720px\).*\.upload-preview\{grid-template-columns:1fr\}/s);
 });
 
-test("server pipeline uses a replaceable ECGImageAnalysisService and server-only OpenAI provider",async()=>{
-  const [route,service,factory,provider]=await Promise.all([
+test("local pipeline uses ONNX foundation and keeps cloud route disabled",async()=>{
+  const [route,adapter,manifest]=await Promise.all([
     readFile(new URL("../app/api/ecg/analyze/route.ts",import.meta.url),"utf8"),
-    readFile(new URL("../lib/ecg-image/server/ecg-image-analysis-service.ts",import.meta.url),"utf8"),
-    readFile(new URL("../lib/ecg-image/server/create-ecg-image-analysis-service.ts",import.meta.url),"utf8"),
-    readFile(new URL("../lib/ecg-image/server/openai-ecg-image-analysis-provider.ts",import.meta.url),"utf8")
+    readFile(new URL("../lib/ecg-image/local-ecg-image-analysis-adapter.ts",import.meta.url),"utf8"),
+    readFile(new URL("../public/models/ecg/manifest.json",import.meta.url),"utf8")
   ]);
-  assert.match(route,/service\.analyze/);
-  assert.match(route,/bytes\.fill\(0\)/);
-  assert.match(service,/type EcgImageAnalysisProvider/);
-  assert.match(service,/class ECGImageAnalysisService/);
-  assert.match(factory,/process\.env\.OPENAI_API_KEY/);
-  assert.doesNotMatch(factory,/NEXT_PUBLIC/);
-  assert.match(provider,/from "openai"/);
-  assert.match(provider,/client\.responses\.create/);
-  assert.match(provider,/type:"input_image"/);
-  assert.match(provider,/text:\{format:\{type:"json_schema"/);
-  assert.match(provider,/strict:true/);
-  assert.match(provider,/store:false/);
-  assert.doesNotMatch(provider,/chat\.completions|v1\/chat\/completions/);
-  for(const field of ["heartRateBpm","rhythm","pWave","prMs","qrsMs","axisDegrees","rWaveProgression","qWave","st","tWave","uWave","pvc","rOnT","bundleBranchBlock","qtMs","qtcMs","imageQuality","leadPlacement","limitations"])assert.match(provider,new RegExp(field));
+  assert.match(route,/errorResponse\(410/);
+  assert.match(adapter,/onnxruntime-web\/webgpu/);
+  assert.match(adapter,/onnxruntime-web\/wasm/);
+  assert.match(manifest,/"modelAvailable": false/);
 });
