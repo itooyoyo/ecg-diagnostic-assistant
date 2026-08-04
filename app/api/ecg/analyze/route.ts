@@ -3,6 +3,7 @@ import { validateEcgFile } from "@/lib/ecg-image/image-parser";
 import { createECGImageAnalysisService } from "@/lib/ecg-image/server/create-ecg-image-analysis-service";
 import { ECGImageAnalysisServiceError } from "@/lib/ecg-image/server/ecg-image-analysis-service";
 import type { EcgAnalysisErrorCode, EcgAnalysisErrorDetail } from "@/types/ecg";
+import { ABSOLUTE_UPLOAD_BYTES } from "@/lib/ecg-image/upload-limits";
 
 export const runtime="nodejs";
 
@@ -12,7 +13,8 @@ export async function POST(request:Request){
   const image=form.get("image");
   if(!(image instanceof File))return errorResponse(400,makeAnalysisError("INVALID_FILE","解析する画像を1件選択してください。",{requestId}));
   const validation=validateEcgFile(image);
-  if(!validation.valid){const code:EcgAnalysisErrorCode=image.size>20*1024*1024?"FILE_TOO_LARGE":image.size===0?"INVALID_FILE":"UNSUPPORTED_MEDIA_TYPE";return errorResponse(code==="FILE_TOO_LARGE"?413:415,makeAnalysisError(code,validation.error??"画像を読み込めませんでした。",{requestId}))}
+  if(image.size>ABSOLUTE_UPLOAD_BYTES)return errorResponse(413,makeAnalysisError("FILE_TOO_LARGE","解析用画像のデータ量が大きすぎます。切り抜き範囲を狭くするか、画像を軽量化して再試行してください。",{requestId}));
+  if(!validation.valid){const code:EcgAnalysisErrorCode=image.size===0?"INVALID_FILE":"UNSUPPORTED_MEDIA_TYPE";return errorResponse(415,makeAnalysisError(code,validation.error??"画像を読み込めませんでした。",{requestId}))}
   const service=createECGImageAnalysisService();
   if(!service)return errorResponse(501,makeAnalysisError("ANALYSIS_NOT_CONFIGURED","画像解析サービスが設定されていません。",{requestId}));
   const bytes=new Uint8Array(await image.arrayBuffer());

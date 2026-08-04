@@ -58,7 +58,7 @@ test("image upload supports selection, drop, preview, removal and exact image MI
   assert.match(source,/accept="image\/jpeg,image\/png,image\/webp"/);
   for(const handler of ["onDragEnter","onDragOver","onDragLeave","onDrop"])assert.match(source,new RegExp(handler));
   assert.match(source,/handleSelectedFile\(e\.dataTransfer\.files\[0\]/);
-  assert.match(source,/alt="選択した心電図画像のプレビュー"/);
+  assert.match(source,/alt="解析用として送信予定の心電図画像プレビュー"/);
   assert.match(source,/URL\.createObjectURL/);
   assert.match(source,/URL\.revokeObjectURL/);
   assert.match(source,/function removeImage/);
@@ -67,9 +67,9 @@ test("image upload supports selection, drop, preview, removal and exact image MI
 test("analysis workflow calls the adapter, prevents duplicate submission and supports abort",async()=>{
   const source=await readFile(workspacePath,"utf8");
   assert.match(source,/async function runImageAnalysis/);
-  assert.match(source,/if\(!file\|\|isBusy/);
+  assert.match(source,/if\(!uploadFile\|\|isBusy/);
   assert.match(source,/new AbortController/);
-  assert.match(source,/adapter\.analyze\(file/);
+  assert.match(source,/adapter\.analyze\(uploadFile/);
   assert.match(source,/abortRef\.current\?\.abort/);
 });
 

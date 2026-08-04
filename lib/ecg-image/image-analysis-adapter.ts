@@ -10,6 +10,10 @@ export class ApiEcgImageAnalysisAdapter implements EcgImageAnalysisAdapter{
     const body=new FormData();body.append("image",file,file.name);let response:Response;
     try{response=await fetch("/api/ecg/analyze",{method:"POST",body,signal:options?.signal})}
     catch(error){if(error instanceof DOMException&&error.name==="AbortError")throw error;throw new EcgAnalysisError({code:"PROVIDER_UNAVAILABLE",userMessage:"画像解析サービスへ接続できませんでした。",retryable:true,suggestedActions:["通信状態を確認して、もう一度解析してください"]})}
+    const vercelError=response.headers.get("x-vercel-error");
+    if(response.status===413||vercelError==="FUNCTION_PAYLOAD_TOO_LARGE")throw new EcgAnalysisError({code:"FILE_TOO_LARGE",userMessage:"解析用画像のデータ量が大きすぎます。切り抜き範囲を狭くするか、画像を軽量化して再試行してください。",retryable:true,suggestedActions:["切り抜きを修正","画像を軽量化して再試行","別画像を選ぶ","手入力で続ける"]},413);
+    const contentType=response.headers.get("content-type")??"";
+    if(!contentType.toLowerCase().includes("application/json"))throw new EcgAnalysisError({code:"INVALID_JSON",userMessage:"解析APIからJSON形式を取得できませんでした。",retryable:true,suggestedActions:["もう一度解析してください"]},response.status);
     let payload:unknown;
     try{payload=await response.json()}catch{throw new EcgAnalysisError({code:"INVALID_JSON",userMessage:"解析APIからJSON形式を取得できませんでした。",retryable:true,suggestedActions:["もう一度解析してください"]},response.status)}
     if(!response.ok){const detail=(payload as {error?:EcgAnalysisErrorDetail})?.error;throw new EcgAnalysisError(detail??{code:"UNEXPECTED_SERVER_ERROR",userMessage:"解析APIのエラー形式を確認できませんでした。",retryable:true,suggestedActions:["もう一度解析してください"]},response.status)}

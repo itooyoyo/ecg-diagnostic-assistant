@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { validateEcgFile } from "@/lib/ecg-image/image-parser";
 import { ApiEcgImageAnalysisAdapter, EcgAnalysisError } from "@/lib/ecg-image/image-analysis-adapter";
 import { EcgImageCropper } from "@/components/ecg/EcgImageCropper";
-import type { CropRect } from "@/lib/ecg-image/client-image-processing";
+import { compressEcgImageForUpload, type CropRect, type EcgUploadImage } from "@/lib/ecg-image/client-image-processing";
+import { ABSOLUTE_UPLOAD_BYTES, TARGET_UPLOAD_BYTES } from "@/lib/ecg-image/upload-limits";
 import { evaluateQuality } from "@/logic/quality/quality.js";
 import { NavigatorRobot, STEP_NAVIGATOR_COMMENTS, type NavigatorState } from "@/components/character/NavigatorRobot";
 import { LeadPlacementGuide } from "@/components/ecg/LeadPlacementGuide";
@@ -75,11 +76,17 @@ export function EcgWorkspace() {
   const [hasPlacementWarning,setHasPlacementWarning]=useState(false);
   const [hasTachyRedFlag,setHasTachyRedFlag]=useState(false);
   const [tachyResult,setTachyResult]=useState<TachyResult|null>(null);
-  const [file,setFile]=useState<File|null>(null);
+  const [processedFile,setProcessedFile]=useState<File|null>(null);
   const [originalFile,setOriginalFile]=useState<File|null>(null);
+  const [uploadFile,setUploadFile]=useState<File|null>(null);
+  const [uploadInfo,setUploadInfo]=useState<EcgUploadImage|null>(null);
   const [originalPreview,setOriginalPreview]=useState("");
   const [preview,setPreview]=useState("");
   const [processedPreview,setProcessedPreview]=useState("");
+  const [uploadPreview,setUploadPreview]=useState("");
+  const [isPreparingUpload,setIsPreparingUpload]=useState(false);
+  const [uploadError,setUploadError]=useState("");
+  const [uploadRevision,setUploadRevision]=useState(0);
   const [cropState,setCropState]=useState<CropRect|null>(null);
   const [isCropping,setIsCropping]=useState(false);
   const [fileError,setFileError]=useState("");
@@ -91,7 +98,8 @@ export function EcgWorkspace() {
   const [isDragging,setIsDragging]=useState(false);
   const fileInputRef=useRef<HTMLInputElement|null>(null);
   const abortRef=useRef<AbortController|null>(null);
-  const isBusy=analysis.status==="uploading"||analysis.status==="analyzing";
+  const uploadAbortRef=useRef<AbortController|null>(null);
+  const isBusy=isPreparingUpload||analysis.status==="uploading"||analysis.status==="analyzing";
   const [reanalysisCount,setReanalysisCount]=useState(0);
   const confirmedValue=(key:string)=>review[key]?.status==="accepted"?review[key].aiValue:review[key]?.status==="edited"?review[key].clinicianValue:null;
   const confirmedHeartRate=numberFromFinding(confirmedValue("heartRate"));
@@ -150,40 +158,47 @@ export function EcgWorkspace() {
 
   useEffect(()=>()=>{if(originalPreview)URL.revokeObjectURL(originalPreview)},[originalPreview]);
   useEffect(()=>()=>{if(processedPreview)URL.revokeObjectURL(processedPreview)},[processedPreview]);
-  useEffect(()=>{if(file&&!originalFile){setOriginalFile(file);setOriginalPreview(preview)}},[file,originalFile,preview]);
-  useEffect(()=>()=>abortRef.current?.abort(),[]);
+  useEffect(()=>()=>{if(uploadPreview)URL.revokeObjectURL(uploadPreview)},[uploadPreview]);
+  useEffect(()=>{
+    setUploadFile(null);setUploadInfo(null);setUploadPreview("");setUploadError("");setPrivacyConfirmed(false);
+    if(!processedFile)return;
+    const controller=new AbortController();uploadAbortRef.current=controller;setIsPreparingUpload(true);setAnalysis({...initialAnalysis,status:"file_selected",progressMessage:"解析用画像を準備しています"});
+    compressEcgImageForUpload({file:processedFile,targetBytes:TARGET_UPLOAD_BYTES,signal:controller.signal}).then(result=>{if(controller.signal.aborted)return;setUploadFile(result.file);setUploadInfo(result);if(result.file!==processedFile)setUploadPreview(URL.createObjectURL(result.file));setAnalysis({...initialAnalysis,status:"file_selected",progressMessage:"解析を開始できます"})}).catch(error=>{if(error instanceof DOMException&&error.name==="AbortError")return;setUploadError(error instanceof Error?error.message:"画像軽量化に失敗しました。");setAnalysis({...initialAnalysis,status:"error",progressMessage:"解析用画像を準備できませんでした",errorMessage:error instanceof Error?error.message:"画像軽量化に失敗しました。"})}).finally(()=>{if(uploadAbortRef.current===controller){uploadAbortRef.current=null;setIsPreparingUpload(false)}});
+    return()=>controller.abort();
+  },[processedFile,uploadRevision]);
+  useEffect(()=>()=>{abortRef.current?.abort();uploadAbortRef.current?.abort()},[]);
   function resetExtractedFindings(){setAnalysisResult(null);setManualMode(false);setReview(emptyReview());setReanalysisCount(0)}
   function handleSelectedFile(next:File|null){
     if(isBusy)return;
-    setFileError("");setFile(null);setOriginalFile(null);setOriginalPreview("");setPreview("");setProcessedPreview("");setCropState(null);setIsCropping(false);setPrivacyConfirmed(false);resetExtractedFindings();
+    setFileError("");setProcessedFile(null);setOriginalFile(null);setUploadFile(null);setUploadInfo(null);setOriginalPreview("");setPreview("");setProcessedPreview("");setUploadPreview("");setCropState(null);setIsCropping(false);setPrivacyConfirmed(false);resetExtractedFindings();
     if(!next){removeImage();return}
     const result=validateEcgFile(next);
     if(!result.valid){setFileError(result.error??"画像を読み込めませんでした");setAnalysis({...initialAnalysis,status:"error",progressMessage:"画像を選択してください",errorMessage:result.error??"画像を読み込めませんでした"});return}
-    setFile(next);setPreview(URL.createObjectURL(next));setAnalysis({...initialAnalysis,status:"file_selected",progressMessage:"解析を開始できます"});
+    const url=URL.createObjectURL(next);setOriginalFile(next);setProcessedFile(next);setOriginalPreview(url);setPreview(url);setAnalysis({...initialAnalysis,status:"file_selected",progressMessage:"解析用画像を準備しています"});
   }
   function removeImage(){
-    abortRef.current?.abort();setFile(null);setOriginalFile(null);setOriginalPreview("");setPreview("");setProcessedPreview("");setCropState(null);setIsCropping(false);setFileError("");setPrivacyConfirmed(false);resetExtractedFindings();setAnalysis(initialAnalysis);
+    abortRef.current?.abort();uploadAbortRef.current?.abort();setProcessedFile(null);setOriginalFile(null);setUploadFile(null);setUploadInfo(null);setOriginalPreview("");setPreview("");setProcessedPreview("");setUploadPreview("");setCropState(null);setIsCropping(false);setFileError("");setUploadError("");setPrivacyConfirmed(false);resetExtractedFindings();setAnalysis(initialAnalysis);
     if(fileInputRef.current)fileInputRef.current.value="";
   }
-  function useOriginalImage(){if(!originalFile)return;setFile(originalFile);setPreview(originalPreview);setProcessedPreview("");setCropState(null);setIsCropping(false);setPrivacyConfirmed(false);resetExtractedFindings();setAnalysis({...initialAnalysis,status:"file_selected",progressMessage:"元画像を使用します"})}
-  function confirmCrop(processed:File,crop:CropRect){const url=URL.createObjectURL(processed);setFile(processed);setProcessedPreview(url);setPreview(url);setCropState(crop);setIsCropping(false);setPrivacyConfirmed(false);resetExtractedFindings();setAnalysis({...initialAnalysis,status:"file_selected",progressMessage:"切り抜き画像を解析できます"})}
+  function useOriginalImage(){if(!originalFile)return;setProcessedFile(originalFile);setPreview(originalPreview);setProcessedPreview("");setCropState(null);setIsCropping(false);setPrivacyConfirmed(false);resetExtractedFindings();setAnalysis({...initialAnalysis,status:"file_selected",progressMessage:"元画像から解析用画像を準備します"})}
+  function confirmCrop(processed:File,crop:CropRect){const url=URL.createObjectURL(processed);setProcessedFile(processed);setProcessedPreview(url);setPreview(url);setCropState(crop);setIsCropping(false);setPrivacyConfirmed(false);resetExtractedFindings();setAnalysis({...initialAnalysis,status:"file_selected",progressMessage:"切り抜き画像を軽量化します"})}
   function continueManually(){setManualMode(true);setAnalysisResult(null);setReview(emptyReview());setAnalysis({...initialAnalysis,status:"success",progressMessage:"画像AI解析未実施：医師の手入力で続行中",completedAt:new Date().toISOString()});requestAnimationFrame(()=>document.getElementById("quick-review")?.scrollIntoView({behavior:"smooth"}))}
   async function runImageAnalysis(){
-    if(!file||isBusy||!privacyConfirmed)return;
+    if(!uploadFile||isBusy||!privacyConfirmed||uploadFile.size>ABSOLUTE_UPLOAD_BYTES)return;
     const controller=new AbortController();abortRef.current=controller;let timedOut=false;
     const timeout=window.setTimeout(()=>{timedOut=true;controller.abort()},90000);
     setAnalysis({status:"uploading",progressMessage:"画像を準備しています",errorMessage:null,startedAt:new Date().toISOString(),completedAt:null});
     try{
       await Promise.resolve();setAnalysis(x=>({...x,status:"analyzing",progressMessage:"心電図所見を抽出しています"}));
       const adapter=new ApiEcgImageAnalysisAdapter();
-      const result=await adapter.analyze(file,{signal:controller.signal});
+      const result=await adapter.analyze(uploadFile,{signal:controller.signal});
       setAnalysisResult(result);setReview(reviewFromAnalysis(result));
       setAnalysis(x=>({...x,status:"success",progressMessage:"解析結果を医師が確認してください",completedAt:new Date().toISOString()}));
       requestAnimationFrame(()=>document.getElementById("quick-review")?.scrollIntoView({behavior:"smooth"}));
     }catch(error){
       if(error instanceof EcgAnalysisError){setAnalysis(x=>({...x,status:error.code==="ANALYSIS_NOT_CONFIGURED"?"not_configured":"error",progressMessage:error.code==="ANALYSIS_NOT_CONFIGURED"?"画像解析サービスが設定されていません":"解析できなかった理由",errorMessage:error.message,errorDetail:error.detail,completedAt:new Date().toISOString()}));return}
       if(error instanceof EcgAnalysisError&&error.code==="ANALYSIS_NOT_CONFIGURED")setAnalysis(x=>({...x,status:"not_configured",progressMessage:"画像解析サービスが設定されていません",errorMessage:error.message,completedAt:new Date().toISOString()}));
-      else if(error instanceof DOMException&&error.name==="AbortError")setAnalysis({...initialAnalysis,status:file?"file_selected":"idle",progressMessage:timedOut?"解析がタイムアウトしました。再試行してください":"解析を中断しました",errorMessage:timedOut?"90秒以内に応答がありませんでした":null});
+      else if(error instanceof DOMException&&error.name==="AbortError")setAnalysis({...initialAnalysis,status:uploadFile?"file_selected":"idle",progressMessage:timedOut?"解析がタイムアウトしました。再試行してください":"解析を中断しました",errorMessage:timedOut?"90秒以内に応答がありませんでした":null});
       else setAnalysis(x=>({...x,status:"error",progressMessage:"解析に失敗しました",errorMessage:error instanceof Error?error.message:"不明なエラー",completedAt:new Date().toISOString()}));
     }finally{window.clearTimeout(timeout);abortRef.current=null}
   }
@@ -205,17 +220,18 @@ export function EcgWorkspace() {
           <input ref={fileInputRef} aria-label="心電図画像ファイル" type="file" accept="image/jpeg,image/png,image/webp" disabled={isBusy} onChange={e=>handleSelectedFile(e.target.files?.[0]??null)}/>
         </div>
         {isCropping&&originalFile&&originalPreview&&<EcgImageCropper file={originalFile} previewUrl={originalPreview} onCancel={()=>setIsCropping(false)} onConfirm={confirmCrop}/>}
-        {file&&preview&&!isCropping&&<div className="upload-actions"><button className="btn" type="button" disabled={isBusy} onClick={()=>{setIsCropping(true);setAnalysis(x=>({...x,status:"cropping",progressMessage:"切り抜き範囲を調整してください"}))}}>{cropState?"もう一度切り抜く":"画像を切り抜く"}</button>{cropState&&<button className="btn" type="button" disabled={isBusy} onClick={useOriginalImage}>元画像に戻す</button>}<span className="muted">{cropState?`回転 ${cropState.rotation}°・処理画像を解析に使用します`:"元画像を解析に使用します"}</span></div>}
-        {fileError&&<div className="error" role="alert">{fileError}</div>}
-        {file&&preview&&<div className="upload-preview"><div>{/* Blob URLs cannot use Next image optimization. */}
+        {processedFile&&preview&&!isCropping&&<div className="upload-actions"><button className="btn" type="button" disabled={isBusy} onClick={()=>{setIsCropping(true);setAnalysis(x=>({...x,status:"cropping",progressMessage:"切り抜き範囲を調整してください"}))}}>{cropState?"もう一度切り抜く":"画像を切り抜く"}</button>{cropState&&<button className="btn" type="button" disabled={isBusy} onClick={useOriginalImage}>元画像に戻す</button>}<span className="muted">{cropState?`回転 ${cropState.rotation}°・切り抜き後に送信サイズを調整します`:"元画像から送信サイズを調整します"}</span></div>}
+        {(fileError||uploadError)&&<><div className="error" role="alert">{fileError||uploadError}</div>{uploadError&&<div className="upload-actions"><button className="btn" type="button" onClick={()=>setIsCropping(true)} disabled={!originalFile}>切り抜きを修正</button><button className="btn" type="button" onClick={()=>setUploadRevision(x=>x+1)} disabled={!processedFile||isBusy}>画像を軽量化して再試行</button><button className="btn" type="button" onClick={()=>fileInputRef.current?.click()}>別画像を選ぶ</button><button className="btn" type="button" onClick={continueManually}>手入力で続ける</button></div>}</>}
+        {originalFile&&preview&&<div className="upload-preview"><div>{/* Blob URLs cannot use Next image optimization. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt="選択した心電図画像のプレビュー"/></div><dl><div><dt>ファイル名</dt><dd>{file.name}</dd></div><div><dt>形式</dt><dd>{file.type}</dd></div><div><dt>サイズ</dt><dd>{formatFileSize(file.size)}</dd></div></dl><div className="upload-actions"><button className="btn" type="button" disabled={isBusy} onClick={()=>fileInputRef.current?.click()}>画像を変更</button><button className="btn" type="button" disabled={isBusy} onClick={removeImage}>画像を削除</button></div></div>}
+          <img src={uploadPreview||preview} alt="解析用として送信予定の心電図画像プレビュー"/></div><div className="upload-file-summary"><section><h4>元画像</h4><dl><div><dt>ファイル名</dt><dd>{originalFile.name}</dd></div><div><dt>元サイズ</dt><dd>{formatFileSize(originalFile.size)}</dd></div></dl></section><section><h4>解析用画像</h4>{uploadInfo?<dl><div><dt>送信サイズ</dt><dd>{formatFileSize(uploadInfo.outputBytes)}</dd></div><div><dt>画像寸法</dt><dd>{uploadInfo.outputWidth} × {uploadInfo.outputHeight} px</dd></div><div><dt>形式</dt><dd>{uploadInfo.mimeType}</dd></div><div><dt>軽量化</dt><dd>{uploadInfo.compressed?"高品質形式へ軽量化しました":"不要（元画像を維持）"}</dd></div><div><dt>品質値</dt><dd>{uploadInfo.quality??"再圧縮なし"}</dd></div></dl>:<p className="muted">{isPreparingUpload?"送信画像を準備しています…":"送信画像を準備できていません"}</p>}</section></div><div className="upload-actions"><button className="btn" type="button" disabled={isBusy} onClick={()=>fileInputRef.current?.click()}>画像を変更</button><button className="btn" type="button" disabled={isBusy} onClick={removeImage}>画像を削除</button></div></div>}
+        {uploadInfo?.compressed&&<div className="result warn" role="status"><strong>画像を送信可能なサイズへ軽量化しました。</strong><br/>波形、誘導名、校正波形が判読できることを確認してください。</div>}
         <label className="privacy-confirm"><input type="checkbox" checked={privacyConfirmed} disabled={isBusy} onChange={e=>setPrivacyConfirmed(e.target.checked)}/>患者氏名・患者ID・生年月日・施設名が画像に含まれていないことを確認しました</label>
         <div className={`analysis-status analysis-status--${analysis.status}`} role="status" aria-live="polite">{isBusy&&<span className="analysis-spinner" aria-hidden="true"/>}<div><strong>{analysis.progressMessage}</strong>{analysis.errorMessage&&<p>{analysis.errorMessage}</p>}</div></div>
-        {analysis.errorDetail&&<><AnalysisErrorDetails error={analysis.errorDetail}/><div className="upload-actions"><button className="btn" type="button" onClick={()=>setIsCropping(true)} disabled={!originalFile}>切り抜きを修正</button><button className="btn" type="button" onClick={useOriginalImage} disabled={!originalFile}>元画像に戻る</button><button className="btn" type="button" onClick={()=>fileInputRef.current?.click()}>別の画像を選択</button><button className="btn" type="button" onClick={continueManually}>AI解析を使わず手入力で続ける</button></div></>}
+        {analysis.errorDetail&&<><AnalysisErrorDetails error={analysis.errorDetail}/><div className="upload-actions"><button className="btn" type="button" onClick={()=>setIsCropping(true)} disabled={!originalFile}>切り抜きを修正</button>{analysis.errorDetail.code==="FILE_TOO_LARGE"&&<button className="btn" type="button" onClick={()=>setUploadRevision(x=>x+1)} disabled={!processedFile||isBusy}>画像を軽量化して再試行</button>}<button className="btn" type="button" onClick={useOriginalImage} disabled={!originalFile}>元画像に戻る</button><button className="btn" type="button" onClick={()=>fileInputRef.current?.click()}>別の画像を選択</button><button className="btn" type="button" onClick={continueManually}>AI解析を使わず手入力で続ける</button></div></>}
         {manualMode&&<div className="result warn" role="status"><strong>画像AI解析未実施</strong><br/>AI所見は使用せず、医師が主要所見を手入力して既存ルールエンジンを実行します。固定のAI値は使用しません。</div>}
         {analysisResult?.partialSuccess&&<div className="result warn" role="status"><strong>一部の項目を解析できませんでした</strong><br/>取得できた所見は表示しています。判定不能の項目を医師が確認・入力してください。</div>}
-        <div className="upload-actions"><button className="btn primary-action" type="button" disabled={!file||isBusy||!privacyConfirmed} onClick={runImageAnalysis}>AI解析を開始</button>{isBusy&&<button className="btn" type="button" onClick={()=>abortRef.current?.abort()}>解析を中断</button>}{(analysis.status==="error"||analysis.status==="not_configured")&&<button className="btn" type="button" disabled={!file||!privacyConfirmed} onClick={runImageAnalysis}>再試行</button>}</div>
+        <div className="upload-actions"><button className="btn primary-action" type="button" disabled={!uploadFile||isBusy||uploadFile.size>ABSOLUTE_UPLOAD_BYTES||!privacyConfirmed} onClick={runImageAnalysis}>AI解析を開始</button>{isPreparingUpload&&<button className="btn" type="button" onClick={()=>uploadAbortRef.current?.abort()}>軽量化を中断</button>}{!isPreparingUpload&&(analysis.status==="uploading"||analysis.status==="analyzing")&&<button className="btn" type="button" onClick={()=>abortRef.current?.abort()}>解析を中断</button>}{(analysis.status==="error"||analysis.status==="not_configured")&&<button className="btn" type="button" disabled={!uploadFile||isBusy||uploadFile.size>ABSOLUTE_UPLOAD_BYTES||!privacyConfirmed} onClick={runImageAnalysis}>再試行</button>}</div>
       </section>
 
       <section className="card workflow-card" id="quick-review"><div className="cardhead"><div><div className="eyebrow">Step 2 · Clinician review</div><h3>AI抽出所見</h3><p className="muted">解析結果を診断として確定せず、各所見を医師が確認・修正します。</p></div><span className="badge">医師修正可能</span></div>

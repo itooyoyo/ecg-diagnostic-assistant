@@ -7,6 +7,8 @@ const route=fs.readFileSync("app/api/ecg/analyze/route.ts","utf8");
 const workspace=fs.readFileSync("components/ecg/EcgWorkspace.tsx","utf8");
 const cropper=fs.readFileSync("components/ecg/EcgImageCropper.tsx","utf8");
 const processing=fs.readFileSync("lib/ecg-image/client-image-processing.ts","utf8");
+const limits=fs.readFileSync("lib/ecg-image/upload-limits.ts","utf8");
+const adapterSource=fs.readFileSync("lib/ecg-image/image-analysis-adapter.ts","utf8");
 const css=fs.readFileSync("app/globals.css","utf8");
 const types=fs.readFileSync("types/ecg.ts","utf8");
 const service=fs.readFileSync("lib/ecg-image/server/ecg-image-analysis-service.ts","utf8");
@@ -30,7 +32,7 @@ const cases=[
   ["crop rectangle state is retained",workspace,"cropState"],
   ["90 degree rotation is supported",cropper,"右へ90度回転"],
   ["crop confirmation creates processed file",processing,"createProcessedEcgFile"],
-  ["analysis sends active processed file",workspace,"adapter.analyze(file"],
+  ["analysis sends upload file only",workspace,"adapter.analyze(uploadFile"],
   ["return to original is supported",workspace,"useOriginalImage"],
   ["recrop clears anonymization confirmation",workspace,"setPrivacyConfirmed(false)"],
   ["new image clears crop state",workspace,"setCropState(null)"],
@@ -60,3 +62,22 @@ test("diagnostic metadata excludes image and output text bodies",()=>{const logg
 test("diagnostic response records only output presence and length",()=>assert.ok(provider.includes("outputTextPresent")&&provider.includes("outputTextLength")));
 test("schema diagnostics retain field names",()=>assert.ok(provider.includes("schemaValidationFields:detail.fieldIssues?.map(issue=>issue.field)")));
 test("mock confidence contains every strict schema key",()=>{for(const key of ["heartRate","rhythm","pWave","pr","qrs","axis","rwave","qWave","st","tWave","uWave","qtc","pvc","rOnT","bundleBranchBlock","placement","regularity"])assert.ok(adapter.includes(`${key}:null`),`missing mock confidence ${key}`)});
+
+test("2 MB JPEG bypasses recompression under target",()=>assert.ok(processing.includes("if(source.size<=targetBytes)return")));
+test("6.9 MB input targets 3.5 MB",()=>assert.ok(limits.includes("3.5*1024*1024")&&processing.includes("blob.size<=targetBytes")));
+test("large PNG converts to a high quality upload format",()=>assert.ok(processing.includes('source.type==="image/webp"?"image/webp":"image/jpeg"')));
+test("only uploadFile is sent to the API",()=>assert.ok(workspace.includes("adapter.analyze(uploadFile")&&!workspace.includes("adapter.analyze(originalFile")&&!workspace.includes("adapter.analyze(processedFile")));
+test("quality-only attempts preserve dimensions first",()=>assert.ok(processing.indexOf("for(const configuredLongEdge")<processing.indexOf("for(const quality")));
+test("quality sequence is bounded at 0.82",()=>assert.ok(limits.includes("0.94,0.91,0.88,0.85,0.82")&&!limits.includes("0.80")));
+test("dimension sequence is centralized",()=>assert.ok(limits.includes("4096,3600,3200")));
+test("failed compression does not return the source file",()=>assert.ok(processing.includes("判読性を保つ設定では4MB以下に軽量化できませんでした")));
+test("4 MB absolute limit disables analysis",()=>assert.ok(limits.includes("ABSOLUTE_UPLOAD_BYTES=4*1024*1024")&&workspace.includes("uploadFile.size>ABSOLUTE_UPLOAD_BYTES")));
+test("compression supports cancellation",()=>assert.ok(processing.includes("throwIfAborted(input.signal)")&&workspace.includes("uploadAbortRef.current?.abort()")));
+test("new image clears prior uploadFile",()=>assert.ok(workspace.includes("setUploadFile(null);setUploadInfo(null)")));
+test("crop confirmation regenerates uploadFile",()=>assert.ok(workspace.includes("setProcessedFile(processed)")&&workspace.includes("[processedFile,uploadRevision]")));
+test("reprocessing clears anonymization confirmation",()=>assert.ok(workspace.includes("setUploadPreview(\"\");setUploadError(\"\");setPrivacyConfirmed(false)")));
+test("HTTP 413 maps to FILE_TOO_LARGE before JSON parsing",()=>assert.ok(adapterSource.indexOf("response.status===413")<adapterSource.indexOf("response.json()")&&adapterSource.includes('code:"FILE_TOO_LARGE"')));
+test("Vercel payload error maps to FILE_TOO_LARGE",()=>assert.ok(adapterSource.includes('vercelError==="FUNCTION_PAYLOAD_TOO_LARGE"')));
+test("HTML 413 is never classified as INVALID_JSON",()=>assert.ok(adapterSource.indexOf("response.status===413")<adapterSource.indexOf("content-type")));
+test("manual clinician entry remains available",()=>assert.ok(workspace.includes("AI解析を使わず手入力で続ける")));
+test("compression attempts have a finite maximum",()=>assert.ok(limits.includes("MAX_COMPRESSION_ATTEMPTS")&&processing.includes("attempts>MAX_COMPRESSION_ATTEMPTS")));
