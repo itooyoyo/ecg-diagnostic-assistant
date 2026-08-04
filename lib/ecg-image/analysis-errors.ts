@@ -1,6 +1,7 @@
 import type { EcgAnalysisErrorCode, EcgAnalysisErrorDetail, EcgAnalysisFieldIssue, EcgOpenAIDebugInfo } from "@/types/ecg";
 
 const actions:Partial<Record<EcgAnalysisErrorCode,string[]>>={
+  AUTH_REQUIRED:["PINを入力して再度利用してください"],SESSION_EXPIRED:["PINを再入力してください"],ANALYSIS_RATE_LIMITED:["少し待ってから再試行してください"],
   INVALID_FILE:["JPEG、PNG、WebPの画像を選択してください"],FILE_TOO_LARGE:["切り抜きを修正","画像を軽量化して再試行","別画像を選ぶ","手入力で続ける"],UNSUPPORTED_MEDIA_TYPE:["JPEG、PNG、WebPの画像を選択してください"],
   ECG_REGION_NOT_FOUND:["心電図波形部分を大きく切り抜いてください","机や背景を除いてください"],
   LEADS_NOT_IDENTIFIABLE:["誘導名を含めて切り抜いてください","画像の向きを確認してください"],

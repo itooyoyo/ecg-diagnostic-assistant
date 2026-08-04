@@ -70,7 +70,7 @@ type ReviewEntry={aiValue:string;clinicianValue:string;status:"accepted"|"edited
 const emptyReview=()=>Object.fromEntries(findings.map(f=>[f.key,{aiValue:"未解析",clinicianValue:"",status:"indeterminate",confidence:null,limitations:[]}])) as Record<string,ReviewEntry>;
 const initialAnalysis:AnalysisProcessState={status:"idle",progressMessage:"画像を選択してください",errorMessage:null,startedAt:null,completedAt:null};
 
-export function EcgWorkspace() {
+export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
   const [quality,setQuality]=useState<Record<string,boolean>>(()=>Object.fromEntries(qualityItems.map(([k])=>[k,false])));
   const qualityResult=useMemo(()=>evaluateQuality(quality),[quality]);
   const [hasPlacementWarning,setHasPlacementWarning]=useState(false);
@@ -196,7 +196,7 @@ export function EcgWorkspace() {
       setAnalysis(x=>({...x,status:"success",progressMessage:"解析結果を医師が確認してください",completedAt:new Date().toISOString()}));
       requestAnimationFrame(()=>document.getElementById("quick-review")?.scrollIntoView({behavior:"smooth"}));
     }catch(error){
-      if(error instanceof EcgAnalysisError){setAnalysis(x=>({...x,status:error.code==="ANALYSIS_NOT_CONFIGURED"?"not_configured":"error",progressMessage:error.code==="ANALYSIS_NOT_CONFIGURED"?"画像解析サービスが設定されていません":"解析できなかった理由",errorMessage:error.message,errorDetail:error.detail,completedAt:new Date().toISOString()}));return}
+      if(error instanceof EcgAnalysisError){if(error.code==="AUTH_REQUIRED"||error.code==="SESSION_EXPIRED"){onAuthRequired?.();return}setAnalysis(x=>({...x,status:error.code==="ANALYSIS_NOT_CONFIGURED"?"not_configured":"error",progressMessage:error.code==="ANALYSIS_NOT_CONFIGURED"?"画像解析サービスが設定されていません":"解析できなかった理由",errorMessage:error.message,errorDetail:error.detail,completedAt:new Date().toISOString()}));return}
       if(error instanceof EcgAnalysisError&&error.code==="ANALYSIS_NOT_CONFIGURED")setAnalysis(x=>({...x,status:"not_configured",progressMessage:"画像解析サービスが設定されていません",errorMessage:error.message,completedAt:new Date().toISOString()}));
       else if(error instanceof DOMException&&error.name==="AbortError")setAnalysis({...initialAnalysis,status:uploadFile?"file_selected":"idle",progressMessage:timedOut?"解析がタイムアウトしました。再試行してください":"解析を中断しました",errorMessage:timedOut?"90秒以内に応答がありませんでした":null});
       else setAnalysis(x=>({...x,status:"error",progressMessage:"解析に失敗しました",errorMessage:error instanceof Error?error.message:"不明なエラー",completedAt:new Date().toISOString()}));

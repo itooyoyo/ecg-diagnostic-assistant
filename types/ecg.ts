@@ -15,7 +15,7 @@ export type ReviewedFinding<T=string> = { aiValue:T; clinicianValue:T|null; stat
 export type EvidenceSource = { sourceOrganization:"JCS"|"JHRS"|"AHA/ACC/HRS"|"ESC"; sourceTitle:string; publicationYear:number; section:string; url:string; evidenceType:"guideline"|"statement"|"peer-reviewed" };
 export type AnalysisStatus="idle"|"file_selected"|"cropping"|"uploading"|"analyzing"|"partial_success"|"success"|"error"|"not_configured";
 export type EcgAnalysisErrorCode =
-  | "INVALID_FILE" | "FILE_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "DEIDENTIFICATION_NOT_CONFIRMED"
+  | "INVALID_FILE" | "FILE_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "DEIDENTIFICATION_NOT_CONFIRMED" | "AUTH_REQUIRED" | "SESSION_EXPIRED" | "ANALYSIS_RATE_LIMITED"
   | "IMAGE_DECODE_FAILED" | "IMAGE_TOO_SMALL" | "IMAGE_NOT_ANALYZABLE" | "ECG_REGION_NOT_FOUND"
   | "LEADS_NOT_IDENTIFIABLE" | "INSUFFICIENT_VISIBLE_LEADS" | "PAPER_SPEED_UNKNOWN" | "GAIN_UNKNOWN"
   | "MODEL_REFUSAL" | "EMPTY_MODEL_RESPONSE" | "MODEL_OUTPUT_INCOMPLETE" | "INVALID_JSON"

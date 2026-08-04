@@ -26,6 +26,23 @@ OPENAI_API_KEY=your-server-side-api-key
 OPENAI_ECG_MODEL=gpt-5.6
 ```
 
+## 限定公開PIN認証
+
+PINと署名秘密鍵はサーバー側環境変数だけで管理します。`.env.local`またはVercelのEnvironment Variablesへ設定し、Gitには保存しないでください。
+
+```dotenv
+ECG_APP_PIN=
+ECG_AUTH_SECRET=
+```
+
+- `ECG_APP_PIN`は本番では8〜12桁のランダムな数字を使用します。
+- `ECG_AUTH_SECRET`は32文字以上のランダムな秘密値を使用します。
+- PIN変更時はProductionを再デプロイしてください。
+- PIN、署名秘密鍵、認証Cookieをログへ出力しないでください。
+- 認証は30分で失効し、PINそのものはCookieへ保存されません。
+- このPIN認証は管理者本人による限定公開向けです。一般公開する場合は、利用者単位の正式な認証・認可・監査を導入してください。
+- 失敗回数と同時解析のメモリ制御はVercelの各サーバーレスインスタンス内に限定されます。署名Cookieでも補完しますが、Cookie削除、別ブラウザ、複数リージョンを横断する完全な分散レート制限ではありません。一般公開時はRedis等の共有ストアを使用してください。
+
 未設定時、`POST /api/ecg/analyze` は固定結果へフォールバックせず、`ANALYSIS_NOT_CONFIGURED` を返します。実解析は公式OpenAI SDKのResponses APIとStructured Outputsを使用します。`store: false`を指定し、アップロード画像はファイルへ保存せず、解析リクエスト中だけメモリ上で扱います。
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
