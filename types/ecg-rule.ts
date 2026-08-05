@@ -22,6 +22,8 @@ export type EcgRuleContext={
   /** Existing module input/result objects. Adapters must not infer absent values. */
   inputs:Readonly<Record<string,unknown>>;
   results:Readonly<Record<string,unknown>>;
+  /** Precomputed output from an existing rule module, normalized by the adapter. */
+  evaluations?:Readonly<Record<string,Partial<EcgRuleEvaluation>>>;
 };
 
 export type EcgRule={
@@ -49,4 +51,3 @@ export type EcgRule={
   implementationFiles:string[];
   testIds:string[];
 };
-

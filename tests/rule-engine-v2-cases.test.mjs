@@ -68,7 +68,7 @@ test("six competing scenarios preserve concurrent candidates or explicit limitat
   const highKSt=integrated({clinical:{ischemicChestPain:true},ecg:{peakedT:true,pWaveAbsent:true,qrsProlonged:true,wideQrs:true,contiguousStElevation:true}});assert.ok(highKSt.diagnosticCandidates.some(x=>x.id==="hyperkalemia-pattern"));assert.ok(highKSt.diagnosticCandidates.some(x=>x.id==="acute-coronary-occlusion"));
   const lbbbIschemia=integrated({clinical:{ischemicChestPain:true},ecg:{lbbb:true,contiguousStElevation:true}});assert.ok(lbbbIschemia.diagnosticCandidates.some(x=>x.id==="acute-coronary-occlusion"));
   const lowKRonT=integrated({ecg:{flattenedT:true,prominentU:true,quProlonged:true,pvc:true,rOnT:true,qtProlonged:true}});assert.ok(lowKRonT.diagnosticCandidates.length>=2);
-  const reversal=integrated({quality:{limbReversal:true},ecg:{contiguousStElevation:true}});assert.ok(reversal.diagnosticCandidates.some(x=>x.id==="technical-limitation"));assert.equal(reversal.diagnosticCandidates.some(x=>x.id==="acute-coronary-occlusion"),false,"既存実装の競合候補欠落を回帰記録する");
+  const reversal=integrated({quality:{limbReversal:true},ecg:{contiguousStElevation:true}});assert.ok(reversal.diagnosticCandidates.some(x=>x.id==="technical-limitation"));assert.equal(reversal.diagnosticCandidates.some(x=>x.id==="acute-coronary-occlusion"),true,"逆接続疑いでも虚血候補を再評価対象として保持する");assert.ok(reversal.ruleRelations.competingRuleIds.includes("ECG-QUALITY-001"));assert.ok(reversal.ruleRelations.competingRuleIds.includes("ECG-ST-001"));
   for(const label of ["頻拍＋ST低下","RBBB＋V1～V3 ST上昇"])assert.ok(label.length>0);
 });
 
