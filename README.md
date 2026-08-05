@@ -36,6 +36,8 @@ Vercelに`OPENAI_API_KEY`、`OPENAI_ECG_MODEL`、`ECG_IMAGE_ANALYSIS_PROVIDER`�
 
 各診断候補には`ECG-ST-001`のような使用Rule ID、判定理由、除外理由、不足情報、次に確認すべきこと、追加検査、初期対応を表示します。Rule confidenceは確率ではなく、既存の支持所見数に基づく表示強度を「高・中・低」で示します。Version 2の責務境界と完成条件は[`docs/version2-rule-engine-design.md`](docs/version2-rule-engine-design.md)、棚卸し結果は[`docs/ecg-rule-registry.md`](docs/ecg-rule-registry.md)、IF–THEN条件、必要入力、入力不足時の追加確認は[`docs/ecg-rule-catalog.md`](docs/ecg-rule-catalog.md)を参照してください。画像解析モデルへ診断、鑑別、検査、対応を生成させてはいけません。
 
+Version 2の標準読影順序は、撮影品質→心拍数→リズム→P波→PQ→QRS→軸→R波進行→Q波→ST→T波→U波→QT/QTc→最終確認の14 STEPです。各STEPは「正常・異常・判定困難」を医師が明示し、未確認を正常扱いしません。緊急候補は途中でも警告しますが、総合診断結果は14 STEP完了後に表示します。
+
 ## 限定公開PIN認証
 
 PINと署名秘密鍵はサーバー側環境変数だけで管理します。`.env.local`またはVercelのEnvironment Variablesへ設定し、Gitには保存しないでください。
