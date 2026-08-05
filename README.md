@@ -34,7 +34,7 @@ Vercelに`OPENAI_API_KEY`、`OPENAI_ECG_MODEL`、`ECG_IMAGE_ANALYSIS_PROVIDER`�
 
 本アプリはExplainable AIではなく、医師が作成・確認した条件を用いる**Explainable Rule Engine**です。将来のローカル画像解析モデルも、心拍数、P波、PR、QRS、軸、ST、T波、QT/QTcなどの所見抽出だけを担当します。診断候補、鑑別、追加確認項目、追加検査、初期対応、Red Flagは、現在のルールエンジンだけで再計算します。
 
-各診断候補には`ECG-ST-001`のような使用Rule IDを表示します。Version 2の責務境界と完成条件は[`docs/version2-rule-engine-design.md`](docs/version2-rule-engine-design.md)、棚卸し結果は[`docs/ecg-rule-registry.md`](docs/ecg-rule-registry.md)、IF–THEN条件、必要入力、入力不足時の追加確認は[`docs/ecg-rule-catalog.md`](docs/ecg-rule-catalog.md)を参照してください。画像解析モデルへ診断、鑑別、検査、対応を生成させてはいけません。
+各診断候補には`ECG-ST-001`のような使用Rule ID、判定理由、除外理由、不足情報、次に確認すべきこと、追加検査、初期対応を表示します。Rule confidenceは確率ではなく、既存の支持所見数に基づく表示強度を「高・中・低」で示します。Version 2の責務境界と完成条件は[`docs/version2-rule-engine-design.md`](docs/version2-rule-engine-design.md)、棚卸し結果は[`docs/ecg-rule-registry.md`](docs/ecg-rule-registry.md)、IF–THEN条件、必要入力、入力不足時の追加確認は[`docs/ecg-rule-catalog.md`](docs/ecg-rule-catalog.md)を参照してください。画像解析モデルへ診断、鑑別、検査、対応を生成させてはいけません。
 
 ## 限定公開PIN認証
 

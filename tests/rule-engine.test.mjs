@@ -30,9 +30,9 @@ test("acute coronary candidate exposes the rule used",()=>{
 });
 
 test("candidate UI shows rule IDs and additional confirmation items",()=>{
-  assert.match(ui,/使用ルール/);
-  assert.match(ui,/追加確認項目/);
-  assert.match(ui,/鑑別・代替説明/);
+  assert.match(ui,/使用Rule/);
+  assert.match(ui,/不足情報/);
+  assert.match(ui,/次に確認すべきこと/);
 });
 
 test("rule catalog covers every requested category",()=>{
