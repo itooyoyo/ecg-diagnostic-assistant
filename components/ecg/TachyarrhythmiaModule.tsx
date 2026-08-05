@@ -114,7 +114,7 @@ export function TachyarrhythmiaModule({heartRate,qrsMs,regularity,onRedFlagChang
 
     <div className="tachy-results">
       <div><div className="eyebrow">最優先候補</div><h4>{result.priority}</h4><ul className="list">{result.candidates.map(x=><li key={x}>{x}</li>)}</ul></div>
-      <div><div className="eyebrow">不足情報</div><ul className="list">{result.missing.length?result.missing.map(x=><li key={x}>{x}</li>):<li>主要項目入力済み</li>}</ul></div>
+      <div><div className="eyebrow">追加確認項目</div><ul className="list">{result.missing.length?result.missing.map(x=><li key={x}>{x}</li>):<li>主要項目入力済み</li>}</ul></div>
     </div>
     <div className="tachy-results"><div><div className="eyebrow">診断アルゴリズム／理由</div><ol className="list">{result.diagnosticReasoning.map(x=><li key={x}>{x}</li>)}</ol></div><div><div className="eyebrow">Clinical Pearl</div><ul className="list">{result.clinicalPearls.map(x=><li key={x}>{x}</li>)}</ul></div></div>
     <div className="result"><strong>総合候補：{result.overallClassification}</strong>{result.possibleCauses.length>0&&<ul className="list">{result.possibleCauses.map(x=><li key={x}>{x}</li>)}</ul>}</div>
