@@ -1,0 +1,1 @@
+export const LOCAL_IMAGE_QUALITY_THRESHOLDS:Readonly<{minimumWidthPx:number;minimumHeightPx:number;minimumContrastStdDev:number;minimumLaplacianStdDev:number;maximumWhiteClipRatio:number;maximumBlackClipRatio:number;glareTileMean:number;maximumGlareTileRatio:number;maximumDarkEdgeRatio:number;excessiveRotationDegrees:number;perspectiveWidthDifferenceRatio:number}>;

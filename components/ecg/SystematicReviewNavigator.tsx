@@ -6,8 +6,7 @@ type Status="unreviewed"|"normal"|"abnormal"|"indeterminate";
 type Step={id:string;title:string;hint:string;items:string[];signals?:{key:string;label:string}[]};
 const steps:Step[]=[
  {id:"quality",title:"記録条件・撮影品質",hint:"12誘導、校正、画像切れと装着異常を最初に確認",items:["12誘導の有無","誘導名","紙送り速度","感度","校正波形","基線動揺","筋電図ノイズ","反射","画像切れ","電極装着異常疑い","V1／V2肋間位置","左右上肢電極逆接続"],signals:[{key:"limbReversal",label:"左右上肢電極逆接続疑い"}]},
- {id:"rate",title:"心拍数",hint:"心房拍数と心室拍数を分けて確認",items:["心拍数","心房拍数","心室拍数","徐脈","頻脈"]},
- {id:"rhythm",title:"リズム",hint:"規則性とP波・QRSの関係を確認",items:["regular","regularly irregular","irregularly irregular","洞調律候補","VF候補","持続性VT候補"],signals:[{key:"sinusRhythm",label:"洞調律候補"},{key:"regular",label:"regular"},{key:"irregularlyIrregular",label:"irregularly irregular"},{key:"vf",label:"VF候補"},{key:"sustainedVt",label:"持続性VT候補"}]},
+ {id:"rate",title:"心拍数・規則性",hint:"心房拍数と心室拍数を分け、規則性も確認",items:["心拍数","心房拍数","心室拍数","regular","regularly irregular","irregularly irregular"],signals:[{key:"sinusRhythm",label:"洞調律候補"},{key:"regular",label:"regular"},{key:"irregularlyIrregular",label:"irregularly irregular"},{key:"vf",label:"VF候補"},{key:"sustainedVt",label:"持続性VT候補"}]},
  {id:"pwave",title:"P波",hint:"まず有無を確認し、IIおよびV1を参照",items:["P波あり／なし／不明","IIで陽性","aVRで陰性","V1形態","陰性P波","細動波候補","粗動波候補","P波とQRSの関係"],signals:[{key:"absent",label:"P波なし"}]},
  {id:"pr",title:"PR／PQ",hint:"一定性とQRS脱落を長い記録で確認",items:["PR時間","一定／変動","短縮","延長","脱落"],signals:[{key:"completeBlock",label:"完全房室ブロック候補"}]},
  {id:"qrs",title:"QRS幅・形態",hint:"最も幅を測定しやすい誘導で測定",items:["QRS幅","narrow／wide","RBBB候補","LBBB候補","IVCD","ペーシング","前興奮／Δ波"],signals:[{key:"narrow",label:"narrow QRS"},{key:"rbbb",label:"RBBB候補"},{key:"lbbb",label:"LBBB候補"}]},
@@ -18,7 +17,8 @@ const steps:Step[]=[
  {id:"twave",title:"T波",hint:"極性、対称性、分布を確認",items:["陽性／陰性／二相性／平坦","対称性","尖鋭T","hyperacute T","巨大陰性T","T-wave alternans","Wellens pattern"],signals:[{key:"severeHyperK",label:"重症高Kパターン候補"}]},
  {id:"uwave",title:"U波",hint:"T波との境界と融合を確認",items:["U波あり","増高U波","陰性U波","T–U融合"]},
  {id:"qt",title:"QT／QTc",hint:"T波終末とU波を区別できない場合は判定困難",items:["QT","QTc","補正式","印字値／医師計測","延長候補","短縮候補","T波終末","U波混入"],signals:[{key:"qtcEntered",label:"QTc入力済み"},{key:"prolonged",label:"QT延長候補"}]},
- {id:"summary",title:"最終確認",hint:"未確認・矛盾・Red Flag・期外収縮を確認して結果へ進む",items:["未確認項目","入力矛盾","追加確認","緊急候補","PVC／R on T"],signals:[{key:"pvc",label:"PVCあり"},{key:"rOnT",label:"R on T候補"}]},
+ {id:"ectopy",title:"期外収縮・R on T",hint:"先行P、QRS形態、T波との位置関係を確認",items:["PAC","PVC","単形性／多形性","連発","couplet","triplet","R on T"],signals:[{key:"pvc",label:"PVCあり"},{key:"rOnT",label:"R on T候補"}]},
+ {id:"summary",title:"最終確認",hint:"未確認・矛盾・Red Flagを確認して結果へ進む",items:["未確認項目","入力矛盾","追加確認","緊急候補"]},
 ];
 const labels:Record<string,string>={unreviewed:"未確認",normal:"正常",abnormal:"異常",indeterminate:"判定困難"};
 

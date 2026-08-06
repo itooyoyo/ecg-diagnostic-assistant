@@ -1,0 +1,18 @@
+import type { LeadName } from "@/types/ecg";
+export type GrayImage={width:number;height:number;data:Uint8ClampedArray};
+export type Point={x:number;y:number};
+export type Bounds={x:number;y:number;width:number;height:number};
+export const STANDARD_3X4_LEADS:LeadName[][];
+export function toGrayscale(image:{width:number;height:number;data:Uint8ClampedArray}):GrayImage;
+export function assessImageQuality(gray:GrayImage):{status:"pass"|"limited"|"stop";score:number;reasons:string[];metrics:Record<string,number>};
+export function enhanceContrast(gray:GrayImage):GrayImage;
+export function estimateSkew(gray:GrayImage,maxDegrees?:number):{angleDegrees:number;confidence:"medium"|"low"};
+export function rotateGray(gray:GrayImage,angleDegrees:number,fill?:number):GrayImage;
+export function estimatePaperQuad(gray:GrayImage):{status:"candidate"|"not_detected";corners:Point[]|null};
+export function rectifyQuad(gray:GrayImage,corners:Point[]|null):GrayImage;
+export function detectGrid(gray:GrayImage):{detected:boolean;xPeriod:number|null;yPeriod:number|null;confidence:"medium"|"low"};
+export function segmentStandard3x4(width:number,height:number,marginRatio?:number):Array<{lead:LeadName;status:"template_candidate";bounds:Bounds}>;
+export function segmentStandard6x2(width:number,height:number,marginRatio?:number):Array<{lead:LeadName;status:"template_candidate";bounds:Bounds}>;
+export function detectSupportedLayout(gray:GrayImage):{layoutType:"three_by_four"|"six_by_two"|"unknown";confidence:"medium"|"low"|"indeterminate";bandCount:number};
+export function extractPolyline(gray:GrayImage,region:Bounds,options?:{threshold?:number;minPointDistance?:number}):{status:"extracted"|"indeterminate";baselineY:number|null;points:Point[];limitations:string[]};
+export function simplifyPolyline(points:Point[],minDistance?:number):Point[];

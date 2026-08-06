@@ -1,0 +1,2 @@
+export const LOCAL_POC_STAGE_THRESHOLDS:{readonly layoutMinimumWidthPx:number;readonly layoutMinimumHeightPx:number;readonly segmentationMinimumWidthPx:number;readonly segmentationMinimumHeightPx:number;readonly polylineMinimumWidthPx:number;readonly polylineMinimumHeightPx:number};
+export function evaluatePocStageGates(input:{width:number;height:number;layoutType:"three_by_four"|"six_by_two"|"unknown";gridDetected:boolean}):{layout:boolean;segmentation:boolean;polyline:boolean;heartRate:boolean;qrs:boolean;st:boolean};

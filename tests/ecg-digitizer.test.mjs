@@ -1,0 +1,75 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { assessImageQuality, detectGrid, detectSupportedLayout, extractPolyline, rectifyQuad, rotateGray, segmentStandard3x4, segmentStandard6x2, simplifyPolyline, toGrayscale } from "../lib/ecg-digitizer/digitizer-core.js";
+
+test("skew correction rotates locally without changing the canvas dimensions",()=>{
+  const gray={width:5,height:5,data:new Uint8ClampedArray(25).fill(255)};
+  gray.data[2*5+1]=0;
+  const rotated=rotateGray(gray,90);
+  assert.equal(rotated.width,5);
+  assert.equal(rotated.height,5);
+  assert.ok(rotated.data.includes(0));
+});
+
+test("standard 3x4 segmentation returns all 12 unique lead regions",()=>{
+  const regions=segmentStandard3x4(1200,900);
+  assert.equal(regions.length,12);
+  assert.equal(new Set(regions.map(region=>region.lead)).size,12);
+  assert.deepEqual(regions.map(region=>region.lead),["I","aVR","V1","V4","II","aVL","V2","V5","III","aVF","V3","V6"]);
+});
+
+test("standard 6x2 segmentation returns the correct left and right lead order",()=>{
+  const regions=segmentStandard6x2(1200,900);
+  assert.equal(regions.length,12);
+  assert.deepEqual(regions.map(x=>x.lead),["I","V1","II","V2","III","V3","aVR","V4","aVL","V5","aVF","V6"]);
+  assert.ok(regions.every(x=>x.bounds.width===570&&x.bounds.height===142.5));
+});
+
+test("layout detector can identify six separated waveform bands",()=>{
+  const width=600,height=360,data=new Uint8ClampedArray(width*height).fill(255);
+  for(const center of [30,90,150,210,270,330])for(let y=center-1;y<=center+1;y++)for(let x=20;x<width-20;x+=3)data[y*width+x]=0;
+  const result=detectSupportedLayout({width,height,data});
+  assert.equal(result.layoutType,"six_by_two");
+});
+
+test("quality gate stops an undersized blank image",()=>{
+  const quality=assessImageQuality({width:200,height:120,data:new Uint8ClampedArray(200*120).fill(255)});
+  assert.equal(quality.status,"stop");
+  assert.ok(quality.reasons.includes("解像度不足"));
+});
+
+test("grayscale conversion preserves dimensions",()=>{
+  const gray=toGrayscale({width:2,height:1,data:new Uint8ClampedArray([255,0,0,255,0,255,0,255])});
+  assert.equal(gray.width,2);assert.equal(gray.height,1);assert.equal(gray.data.length,2);assert.ok(gray.data[0]!==gray.data[1]);
+});
+
+test("grid detector returns periodic candidates for a synthetic grid",()=>{
+  const width=160,height=120,data=new Uint8ClampedArray(width*height).fill(255);
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++)if(x%10===0||y%10===0)data[y*width+x]=80;
+  const grid=detectGrid({width,height,data});
+  assert.equal(grid.detected,true);assert.ok(grid.xPeriod);assert.ok(grid.yPeriod);
+});
+
+test("waveform extractor returns a polyline and baseline for a visible trace",()=>{
+  const width=240,height=100,data=new Uint8ClampedArray(width*height).fill(255);
+  for(let x=0;x<width;x++){const y=Math.round(50+15*Math.sin(x/12));data[y*width+x]=10;}
+  const result=extractPolyline({width,height,data},{x:0,y:0,width,height},{threshold:80});
+  assert.equal(result.status,"extracted");assert.ok(result.points.length>50);assert.ok(result.baselineY!=null);
+});
+
+test("an unrecognizable lead fails independently with no fabricated points",()=>{
+  const width=100,height=60,data=new Uint8ClampedArray(width*height).fill(255);
+  const result=extractPolyline({width,height,data},{x:0,y:0,width,height});
+  assert.equal(result.status,"indeterminate");assert.deepEqual(result.points,[]);
+});
+
+test("quad rectification produces a new rectangular grayscale image",()=>{
+  const width=20,height=20,data=new Uint8ClampedArray(width*height).map((_,index)=>index%256);
+  const result=rectifyQuad({width,height,data},[{x:2,y:1},{x:17,y:2},{x:18,y:18},{x:1,y:17}]);
+  assert.ok(result.width>0);assert.ok(result.height>0);assert.equal(result.data.length,result.width*result.height);
+});
+
+test("polyline simplification retains endpoints",()=>{
+  const points=Array.from({length:20},(_,x)=>({x,y:10}));const simplified=simplifyPolyline(points,4);
+  assert.deepEqual(simplified[0],points[0]);assert.deepEqual(simplified.at(-1),points.at(-1));assert.ok(simplified.length<points.length);
+});

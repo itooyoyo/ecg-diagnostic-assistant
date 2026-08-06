@@ -5,6 +5,9 @@ import { validateEcgFile } from "@/lib/ecg-image/image-parser";
 import { EcgAnalysisError } from "@/lib/ecg-image/image-analysis-adapter";
 import { OnnxLocalEcgImageAnalysisAdapter, type LocalSupport } from "@/lib/ecg-image/local-ecg-image-analysis-adapter";
 import { EcgImageCropper } from "@/components/ecg/EcgImageCropper";
+import { EcgImageDigitizerPrototype } from "@/components/ecg/EcgImageDigitizerPrototype";
+import { LocalFeatureReview } from "@/components/ecg/LocalFeatureReview";
+import { LocalEcgPoc } from "@/components/ecg/LocalEcgPoc";
 import { SystematicReviewNavigator } from "@/components/ecg/SystematicReviewNavigator";
 import { compressEcgImageForUpload, type CropRect, type EcgUploadImage } from "@/lib/ecg-image/client-image-processing";
 import { ABSOLUTE_UPLOAD_BYTES, TARGET_UPLOAD_BYTES } from "@/lib/ecg-image/upload-limits";
@@ -52,6 +55,7 @@ import { createDefaultSgarbossaInput } from "@/data/sgarbossa/defaults.js";
 import { interpretSgarbossa } from "@/logic/sgarbossa/interpret-sgarbossa.js";
 import { SgarbossaModule } from "@/components/interpretation/SgarbossaModule";
 import type { AnalysisProcessState, EcgAnalysisErrorDetail, EcgImageAnalysisResult } from "@/types/ecg";
+import type { LocalEcgFeatureCandidate } from "@/types/local-ecg-feature";
 
 const qualityItems = [
   ["allLeads","12誘導がすべて写っている"],["leadLabels","誘導名が読める"],["waveformsComplete","波形が途中で切れていない"],
@@ -97,6 +101,7 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
   const [isCropping,setIsCropping]=useState(false);
   const [fileError,setFileError]=useState("");
   const [review,setReview]=useState<Record<string,ReviewEntry>>(emptyReview);
+  const [localFeatureCandidates,setLocalFeatureCandidates]=useState<LocalEcgFeatureCandidate[]>([]);
   const [analysis,setAnalysis]=useState<AnalysisProcessState>(initialAnalysis);
   const [analysisResult,setAnalysisResult]=useState<EcgImageAnalysisResult|null>(null);
   const [manualMode,setManualMode]=useState(false);
@@ -178,7 +183,7 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
   },[processedFile,uploadRevision]);
   useEffect(()=>()=>{abortRef.current?.abort();uploadAbortRef.current?.abort()},[]);
   useEffect(()=>{let active=true;localAdapterRef.current.isSupported().then(result=>{if(active)setLocalSupport(result)});return()=>{active=false}},[]);
-  function resetExtractedFindings(){setAnalysisResult(null);setManualMode(false);setReview(emptyReview());setReanalysisCount(0)}
+  function resetExtractedFindings(){setAnalysisResult(null);setManualMode(false);setReview(emptyReview());setLocalFeatureCandidates([]);setReanalysisCount(0)}
   function handleSelectedFile(next:File|null){
     if(isBusy)return;
     setFileError("");setProcessedFile(null);setOriginalFile(null);setUploadFile(null);setUploadInfo(null);setOriginalPreview("");setPreview("");setProcessedPreview("");setUploadPreview("");setCropState(null);setIsCropping(false);setPrivacyConfirmed(false);resetExtractedFindings();
@@ -225,9 +230,9 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
       <section className="card version2-intro" aria-labelledby="version2-intro-title">
         <div className="eyebrow">ECG Diagnostic Assistant Version 2</div>
         <h3 id="version2-intro-title">心電図ルールベース解析エンジン</h3>
-        <p>本アプリはローカル心電図解析モデルを開発中です。</p>
-        <p>現時点では、医師が主要所見を入力し、入力された所見をもとに本アプリのルールベース解析エンジンが診断候補・鑑別・追加検査・初期対応を提示します。</p>
-        <p>将来はローカル画像解析モデルを追加し、画像から所見抽出のみ自動化します。診断ロジックは変更しません。</p>
+        <p>心電図画像を確認し、各所見を順番に入力してください。入力所見を既存ルールと照合し、Red Flag、診断候補、追加確認・検査、初期対応を提示します。</p>
+        <p>現時点では画像から所見を自動抽出せず、画像と入力内容を外部解析サービスへ送信しません。将来は画像から所見抽出のみ自動化します。診断ロジックは変更しません。</p>
+        <details><summary>Version 2の詳細と制限</summary><ul className="list"><li>ローカルルールベース解析</li><li>画像自動抽出・OCRなし</li><li>医師入力必須</li><li>外部AI送信なし</li><li>診断確定を目的とせず、最終判断は医師が行います</li></ul></details>
       </section>
       <div className="steps compact-steps">{["画像アップロード","医師による主要所見入力","ルールベース解析結果"].map((s,i)=><span className={`step ${i===0?"on":""}`} key={s}>STEP {i+1} · {s}</span>)}</div>
 
@@ -243,6 +248,9 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
         {originalFile&&preview&&<div className="upload-preview"><div>{/* Blob URLs cannot use Next image optimization. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={uploadPreview||preview} alt="解析用として送信予定の心電図画像プレビュー"/></div><div className="upload-file-summary"><section><h4>元画像</h4><dl><div><dt>ファイル名</dt><dd>{originalFile.name}</dd></div><div><dt>元サイズ</dt><dd>{formatFileSize(originalFile.size)}</dd></div></dl></section><section><h4>解析用画像</h4>{uploadInfo?<dl><div><dt>送信サイズ</dt><dd>{formatFileSize(uploadInfo.outputBytes)}</dd></div><div><dt>画像寸法</dt><dd>{uploadInfo.outputWidth} × {uploadInfo.outputHeight} px</dd></div><div><dt>形式</dt><dd>{uploadInfo.mimeType}</dd></div><div><dt>軽量化</dt><dd>{uploadInfo.compressed?"高品質形式へ軽量化しました":"不要（元画像を維持）"}</dd></div><div><dt>品質値</dt><dd>{uploadInfo.quality??"再圧縮なし"}</dd></div></dl>:<p className="muted">{isPreparingUpload?"送信画像を準備しています…":"送信画像を準備できていません"}</p>}</section></div><div className="upload-actions"><button className="btn" type="button" disabled={isBusy} onClick={()=>fileInputRef.current?.click()}>画像を変更</button><button className="btn" type="button" disabled={isBusy} onClick={removeImage}>画像を削除</button></div></div>}
+        {processedFile&&!isCropping&&<EcgImageDigitizerPrototype key={`${processedFile.name}-${processedFile.lastModified}`} file={processedFile} onRequestCrop={()=>setIsCropping(true)}/>}
+        {processedFile&&!isCropping&&<LocalFeatureReview candidates={localFeatureCandidates} onChange={setLocalFeatureCandidates}/>}
+        {processedFile&&!isCropping&&privacyConfirmed&&<LocalEcgPoc key={`poc-${processedFile.name}-${processedFile.lastModified}`} file={processedFile}/>}
         {uploadInfo?.compressed&&<div className="result warn" role="status"><strong>画像を送信可能なサイズへ軽量化しました。</strong><br/>波形、誘導名、校正波形が判読できることを確認してください。</div>}
         <label className="privacy-confirm"><input type="checkbox" checked={privacyConfirmed} disabled={isBusy} onChange={e=>setPrivacyConfirmed(e.target.checked)}/>患者氏名・患者ID・生年月日・施設名が画像に含まれていないことを確認しました</label>
         <div className={`analysis-status analysis-status--${analysis.status}`} role="status" aria-live="polite">{isBusy&&<span className="analysis-spinner" aria-hidden="true"/>}<div><strong>{analysis.progressMessage}</strong>{analysis.errorMessage&&<p>{analysis.errorMessage}</p>}</div></div>
@@ -299,7 +307,8 @@ function ClinicalResults({result,pearls}:{result:IntegratedResult;pearls:string[
   const differentials=result.diagnosticCandidates.slice(1);
   const tests=result.todaysPlan.filter(x=>x.category==="test");
   const actions=result.todaysPlan.filter(x=>x.category==="immediate"||x.category==="today");
-  return <section className="card workflow-card clinical-results" id="clinical-results"><div className="cardhead"><div><div className="eyebrow">Step 3 · Result</div><h3>診断・対応</h3><p className="muted">医師確認所見から再計算した結果です。</p></div><span className={`urgency-chip urgency-chip--${result.urgency}`}>{result.urgency}</span></div>
+  return <section className="card workflow-card clinical-results" id="clinical-results"><div className="cardhead"><div><div className="eyebrow">Step 3 · Result</div><h3>診断・対応</h3><p className="muted">医師確認所見から再計算した結果です。</p><strong className="rule-result-notice">ルールベース推定結果・確定診断ではありません</strong></div><span className={`urgency-chip urgency-chip--${result.urgency}`}>{result.urgency}</span></div>
+    <div className="clinical-disclaimer" role="note"><strong>結果の位置づけ</strong><p>本結果は、心電図画像からローカル処理で推定した所見候補、医師が確認・修正した所見、および本アプリに登録されたルールに基づく診断支援結果です。</p><p>画像のみから確定診断を行うものではありません。患者背景、症状、バイタル、採血、前回心電図などを含め、担当医が最終判断してください。</p></div>
     {result.conflictingFindings.length>0&&<section className="result warn"><strong>併存または鑑別が必要な候補</strong><ul className="list">{result.conflictingFindings.map(x=><li key={x.id}>{x.description}</li>)}</ul></section>}
     <section className="red-flag-panel" aria-labelledby="red-flag-title"><div><span aria-hidden="true">!</span><div><div className="eyebrow">Must not miss</div><h4 id="red-flag-title">見逃してはいけない疾患</h4></div></div>{result.criticalFindings.length?<ul className="list">{result.criticalFindings.map(x=><li key={x.id}><strong>{x.label}</strong><span>{x.supportingFindings.map(v=>v.label).join("、")||"緊急所見として医師確認が必要"}</span></li>)}</ul>:<p className="muted">現在の確定所見からRed Flag候補は生成されていません。</p>}</section>
     <ResultBlock number="1" title="診断候補（優先順位付き）">{result.diagnosticCandidates.length?<div className="candidate-reasons">{result.diagnosticCandidates.map((x,i)=><article key={x.id}><header><span>{i+1}</span><div><strong>{x.label}</strong><small>Rule confidence：{ruleConfidenceJa(x.confidence)} · {x.urgency}</small></div></header><div><b>判定理由</b><SimpleList items={x.supportingFindings.map(v=>v.label)}/></div></article>)}</div>:<p className="muted">優先候補は生成されていません。</p>}</ResultBlock>
