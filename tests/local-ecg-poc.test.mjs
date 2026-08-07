@@ -48,8 +48,8 @@ test("existing inferior adjacency definition remains active",()=>{
 
 test("unreliable field candidates remain absent from rule context",()=>{
  const result=localPocToRuleContext(measurements({heartRateBpm:null,rhythmRegularity:"indeterminate",qrsWidthCandidate:"indeterminate",stDirections:st({V2:"indeterminate"})}));
- assert.equal(result.context.ecg.veryRapidRate,false);
- assert.equal(result.context.ecg.wideQrs,false);
+ assert.equal(result.context.ecg.veryRapidRate,undefined);
+ assert.equal(result.context.ecg.wideQrs,undefined);
  assert.ok(result.indeterminateFields.includes("heartRateBpm"));
 });
 

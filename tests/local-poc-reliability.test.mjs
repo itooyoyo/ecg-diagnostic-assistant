@@ -48,8 +48,8 @@ test("unclear baseline or J point leaves ST direction indeterminate",()=>{
 
 test("field quality gates do not convert unavailable values to normal",()=>{
  const adapted=localPocToRuleContext({heartRateBpm:null,rhythmRegularity:"indeterminate",qrsWidthCandidate:"indeterminate",stDirections:[],quality:"adequate"});
- assert.equal(adapted.context.ecg.wideQrs,false);
- assert.equal(adapted.context.ecg.contiguousStElevation,false);
+ assert.equal(adapted.context.ecg.wideQrs,undefined);
+ assert.equal(adapted.context.ecg.contiguousStElevation,undefined);
  assert.deepEqual(adapted.indeterminateFields,["heartRateBpm","rhythmRegularity","qrsWidthCandidate","stDirections"]);
 });
 
