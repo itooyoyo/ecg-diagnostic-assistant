@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assessImageQuality, detectGrid, detectSupportedLayout, extractPolyline, rectifyQuad, rotateGray, segmentStandard3x4, segmentStandard3x4WithLongII, segmentStandard6x2, simplifyPolyline, toGrayscale } from "../lib/ecg-digitizer/digitizer-core.js";
+import { assessImageQuality, detectGrid, detectSupportedLayout, extractPolyline, extractWaveformCenterline, rectifyQuad, rotateGray, segmentStandard3x4, segmentStandard3x4WithLongII, segmentStandard6x2, simplifyPolyline, toGrayscale } from "../lib/ecg-digitizer/digitizer-core.js";
 
 test("skew correction rotates locally without changing the canvas dimensions",()=>{
   const gray={width:5,height:5,data:new Uint8ClampedArray(25).fill(255)};
@@ -106,6 +106,53 @@ test("polyline simplification retains endpoints",()=>{
   assert.deepEqual(simplified[0],points[0]);assert.deepEqual(simplified.at(-1),points.at(-1));assert.ok(simplified.length<points.length);
 });
 
+test("centerline keeps at most one tracked value per column",()=>{
+  const gray=syntheticTrace({width:240,height:100});
+  const result=extractWaveformCenterline(gray,{x:0,y:0,width:240,height:100},{threshold:100,grid:{xPeriod:10,yPeriod:10}});
+  assert.equal(new Set(result.points.map(point=>point.x)).size,result.points.length);
+});
+
+test("centerline prefers waveform continuity at a grid crossing",()=>{
+  const gray=syntheticTrace({width:240,height:100,horizontalGrid:true});
+  const result=extractWaveformCenterline(gray,{x:0,y:0,width:240,height:100},{threshold:100,grid:{xPeriod:10,yPeriod:10}});
+  const middle=result.points.filter(point=>point.x>80&&point.x<160);
+  assert.ok(middle.filter(point=>Math.abs(point.y-50)<=3).length>middle.length*.8);
+});
+
+test("centerline preserves a steep QRS transition",()=>{
+  const gray=syntheticTrace({width:240,height:100,qrs:true});
+  const result=extractWaveformCenterline(gray,{x:0,y:0,width:240,height:100},{threshold:100,grid:{xPeriod:10,yPeriod:10}});
+  assert.ok(Math.max(...result.points.map(point=>Math.abs(point.y-50)))>=28);
+});
+
+test("centerline excludes a calibration pulse by morphology",()=>{
+  const gray=syntheticTrace({width:240,height:100,calibration:true});
+  const result=extractWaveformCenterline(gray,{x:0,y:0,width:240,height:100},{threshold:100,grid:{xPeriod:10,yPeriod:10}});
+  assert.ok(result.audit.roi.x>20);
+  assert.ok(result.points.every(point=>point.x>=result.audit.roi.x));
+});
+
+test("centerline excludes a dense lead-label-like block",()=>{
+  const gray=syntheticTrace({width:240,height:100,label:true});
+  const result=extractWaveformCenterline(gray,{x:0,y:0,width:240,height:100},{threshold:100,grid:{xPeriod:10,yPeriod:10}});
+  assert.ok(result.audit.roi.x>12);
+});
+
+test("centerline records missing segments and tracking coverage",()=>{
+  const gray=syntheticTrace({width:240,height:100,missing:[100,119]});
+  const result=extractWaveformCenterline(gray,{x:0,y:0,width:240,height:100},{threshold:100,grid:{xPeriod:10,yPeriod:10}});
+  assert.ok(result.audit.missingSegments.some(segment=>segment.length>=20));
+  assert.equal(result.audit.trackingCoverage,result.audit.trackedColumns/result.audit.totalColumns);
+  assert.ok(result.audit.trackingCoverage<1);
+});
+
+test("centerline does not over-smooth QRS amplitude",()=>{
+  const gray=syntheticTrace({width:240,height:100,qrs:true});
+  const result=extractWaveformCenterline(gray,{x:0,y:0,width:240,height:100},{threshold:100,grid:{xPeriod:10,yPeriod:10}});
+  const amplitude=Math.max(...result.points.map(point=>Math.abs(point.y-50)));
+  assert.ok(amplitude>=28);
+});
+
 function syntheticLayout({width,height,rows,marginRatio=.04,rightHalf=true}){
   const data=new Uint8ClampedArray(width*height).fill(255),margin=height*marginRatio,usable=height-2*margin;
   for(let row=0;row<rows;row+=1){
@@ -114,5 +161,19 @@ function syntheticLayout({width,height,rows,marginRatio=.04,rightHalf=true}){
       if(rightHalf||x<width/2)data[y*width+x]=0;
     }
   }
+  return {width,height,data};
+}
+
+function syntheticTrace({width,height,horizontalGrid=false,qrs=false,calibration=false,label=false,missing=null}){
+  const data=new Uint8ClampedArray(width*height).fill(255);
+  if(horizontalGrid)for(let x=0;x<width;x+=1)data[20*width+x]=80;
+  for(let x=0;x<width;x+=1){
+    if(missing&&x>=missing[0]&&x<=missing[1])continue;
+    let y=50;
+    if(qrs&&x>=116&&x<=124)y=[50,42,30,15,8,15,30,42,50][x-116];
+    data[y*width+x]=10;
+  }
+  if(calibration)for(let x=8;x<=20;x+=1)for(let y=15;y<=70;y+=1)if(x===8||x===20||y===15)data[y*width+x]=0;
+  if(label)for(let x=4;x<=14;x+=1)for(let y=10;y<=35;y+=3)data[y*width+x]=0;
   return {width,height,data};
 }

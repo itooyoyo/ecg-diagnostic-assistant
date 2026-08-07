@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {detectRPeakCandidates,localPocToRuleContext,measureLocalPocLeads} from "../lib/ecg-features/local/local-poc.js";
+import {extractWaveformCenterline} from "../lib/ecg-digitizer/digitizer-core.js";
 
 const grid={detected:true,xPeriod:10,yPeriod:10},gates={heartRate:true,qrs:true,st:true};
 const leadNames=["I","II","III","aVR","aVL","aVF","V1","V2","V3","V4","V5","V6"];
@@ -62,6 +63,14 @@ test("clustering reduces refractory rejection bursts",()=>{
  const candidates=detectRPeakCandidates(trace([50,51,52,150,151,152,250,251,252,350,351,352]),grid);
  assert.ok(candidates.filter(item=>item.rejectionReason==="cluster_duplicate").length>=8);
  assert.ok(candidates.filter(item=>item.rejectionReason==="refractory_period").length<=1);
+});
+
+test("R peak detector runs on the improved centerline",()=>{
+ const width=500,height=100,data=new Uint8ClampedArray(width*height).fill(255);
+ for(let x=0;x<width;x+=1){let y=50;for(const peak of [60,160,260,360,460])if(Math.abs(x-peak)<=2)y=20+Math.abs(x-peak)*15;data[y*width+x]=10}
+ const centerline=extractWaveformCenterline({width,height,data},{x:0,y:0,width,height},{threshold:100,grid});
+ const candidates=detectRPeakCandidates(centerline.points,grid);
+ assert.ok(candidates.some(item=>item.accepted));
 });
 
 test("unreliable extreme peak train is not passed as a heart rate",()=>{
