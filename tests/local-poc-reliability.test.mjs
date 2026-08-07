@@ -26,6 +26,44 @@ test("refractory period rejects duplicate peak candidates",()=>{
  assert.ok(candidates.some(item=>!item.accepted&&item.rejectionReason==="refractory_period"));
 });
 
+test("nearby raw candidates are grouped into one QRS cluster",()=>{
+ const candidates=detectRPeakCandidates(trace([50,51,52,150,250,350]),grid);
+ const firstCluster=candidates.filter(item=>item.clusterId===candidates[0].clusterId);
+ assert.ok(firstCluster.length>=3);
+ assert.equal(firstCluster.filter(item=>item.accepted).length,1);
+ assert.ok(firstCluster.filter(item=>!item.accepted).every(item=>item.rejectionReason==="cluster_duplicate"));
+});
+
+test("one QRS cluster never creates multiple accepted peaks",()=>{
+ const candidates=detectRPeakCandidates(trace([50,51,52,53,150,250,350]),grid);
+ for(const clusterId of new Set(candidates.map(item=>item.clusterId)))assert.ok(candidates.filter(item=>item.clusterId===clusterId&&item.accepted).length<=1);
+});
+
+test("cluster representative selection is deterministic",()=>{
+ const points=trace([50,51,52,150,250,350]);points[51].y=15;
+ const first=detectRPeakCandidates(points,grid),second=detectRPeakCandidates(points,grid);
+ assert.deepEqual(first,second);
+ assert.equal(first.find(item=>item.clusterId===first[0].clusterId&&item.accepted)?.x,51);
+});
+
+test("lower-amplitude T-like deflection is not promoted over R peaks",()=>{
+ const points=trace([50,150,250,350]);points[100].y=38;points[200].y=38;points[300].y=38;
+ const candidates=detectRPeakCandidates(points,grid);
+ assert.equal(candidates.some(item=>[100,200,300].includes(item.x)&&item.accepted),false);
+});
+
+test("thin periodic residue is not mass-accepted as R peaks",()=>{
+ const points=trace(Array.from({length:35},(_,index)=>40+index*10)),candidates=detectRPeakCandidates(points,grid);
+ assert.ok(candidates.filter(item=>item.accepted).length<=2);
+ assert.ok(candidates.some(item=>item.artifactClass==="grid_residual_candidate"||item.rejectionReason==="cluster_duplicate"));
+});
+
+test("clustering reduces refractory rejection bursts",()=>{
+ const candidates=detectRPeakCandidates(trace([50,51,52,150,151,152,250,251,252,350,351,352]),grid);
+ assert.ok(candidates.filter(item=>item.rejectionReason==="cluster_duplicate").length>=8);
+ assert.ok(candidates.filter(item=>item.rejectionReason==="refractory_period").length<=1);
+});
+
 test("unreliable extreme peak train is not passed as a heart rate",()=>{
  const noisy=Array.from({length:501},(_,x)=>({x,y:x%12===0?20:50})),result=measureLocalPocLeads([lead("II")],grid,"adequate",gates,{lead:"II",points:noisy,quality:"adequate",limitations:[]});
  assert.equal(result.heartRateBpm,null);
