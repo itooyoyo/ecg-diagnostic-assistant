@@ -1,16 +1,29 @@
-// Provisional engineering thresholds for safe image-processing stages.
-// These are not medical criteria and must not be relaxed for a single image.
+// Provisional engineering thresholds, derived from per-lead sampling needs.
+// They are not medical criteria and must not be relaxed for a single image.
 export const LOCAL_POC_STAGE_THRESHOLDS=Object.freeze({
-  layoutMinimumWidthPx:320,layoutMinimumHeightPx:180,
-  segmentationMinimumWidthPx:400,segmentationMinimumHeightPx:220,
-  polylineMinimumWidthPx:640,polylineMinimumHeightPx:360,
+  layout:Object.freeze({minimumWidthPx:320,minimumHeightPx:180,minimumPixelsPerLeadWidth:0,minimumPixelsPerLeadHeight:0}),
+  segmentation:Object.freeze({minimumWidthPx:0,minimumHeightPx:0,minimumPixelsPerLeadWidth:90,minimumPixelsPerLeadHeight:32}),
+  polyline:Object.freeze({minimumWidthPx:0,minimumHeightPx:0,minimumPixelsPerLeadWidth:120,minimumPixelsPerLeadHeight:40}),
+  heartRate:Object.freeze({minimumWidthPx:640,minimumHeightPx:0,minimumPixelsPerLeadWidth:220,minimumPixelsPerLeadHeight:40}),
+  qrs:Object.freeze({minimumWidthPx:640,minimumHeightPx:0,minimumPixelsPerLeadWidth:220,minimumPixelsPerLeadHeight:48}),
+  st:Object.freeze({minimumWidthPx:640,minimumHeightPx:0,minimumPixelsPerLeadWidth:220,minimumPixelsPerLeadHeight:48}),
 });
 
-export function evaluatePocStageGates({width,height,layoutType,gridDetected}){
-  const sized=(minimumWidth,minimumHeight)=>width>=minimumWidth&&height>=minimumHeight;
+export function getPocLeadDimensions(width,height,layoutType){
+  if(layoutType==="three_by_four")return {width:width*.92/4,height:height*.92/3};
+  if(layoutType==="six_by_two")return {width:width*.95/2,height:height*.95/6};
+  return {width:0,height:0};
+}
+
+export function evaluatePocStageGates({width,height,layoutType,gridDetected,imageQualityAdequate=true}){
   const layoutKnown=layoutType==="three_by_four"||layoutType==="six_by_two";
-  const layout=sized(LOCAL_POC_STAGE_THRESHOLDS.layoutMinimumWidthPx,LOCAL_POC_STAGE_THRESHOLDS.layoutMinimumHeightPx)&&layoutKnown;
-  const segmentation=layout&&sized(LOCAL_POC_STAGE_THRESHOLDS.segmentationMinimumWidthPx,LOCAL_POC_STAGE_THRESHOLDS.segmentationMinimumHeightPx);
-  const polyline=segmentation&&sized(LOCAL_POC_STAGE_THRESHOLDS.polylineMinimumWidthPx,LOCAL_POC_STAGE_THRESHOLDS.polylineMinimumHeightPx)&&gridDetected;
-  return {layout,segmentation,polyline,heartRate:polyline,qrs:polyline,st:polyline};
+  const leadPixels=getPocLeadDimensions(width,height,layoutType);
+  const meets=stage=>width>=stage.minimumWidthPx&&height>=stage.minimumHeightPx&&leadPixels.width>=stage.minimumPixelsPerLeadWidth&&leadPixels.height>=stage.minimumPixelsPerLeadHeight;
+  const layout=layoutKnown&&meets(LOCAL_POC_STAGE_THRESHOLDS.layout);
+  const segmentation=layout&&meets(LOCAL_POC_STAGE_THRESHOLDS.segmentation);
+  const polyline=segmentation&&gridDetected&&meets(LOCAL_POC_STAGE_THRESHOLDS.polyline);
+  const heartRate=polyline&&imageQualityAdequate&&meets(LOCAL_POC_STAGE_THRESHOLDS.heartRate);
+  const qrs=polyline&&imageQualityAdequate&&meets(LOCAL_POC_STAGE_THRESHOLDS.qrs);
+  const st=polyline&&imageQualityAdequate&&meets(LOCAL_POC_STAGE_THRESHOLDS.st);
+  return {layout,segmentation,polyline,heartRate,qrs,st,leadPixels};
 }

@@ -1,4 +1,5 @@
 import type {LocalAnalysisStatus,LocalPocCorrection,LocalPocResult,PocQuality} from "../../../types/local-ecg-poc";
 export function analyzeLocalEcgPoc(file:File,options?:{signal?:AbortSignal;onStatus?:(status:LocalAnalysisStatus)=>void;layoutType?:"auto"|"three_by_four"|"six_by_two"|"unknown"}):Promise<LocalPocResult>;
+export function measureLocalPocLeads(leads:LocalPocResult["leads"],grid:{detected:boolean;xPeriod:number;yPeriod:number},quality:"adequate"|"limited"|"inadequate",gates:{heartRate:boolean;qrs:boolean;st:boolean}):LocalPocResult["measurements"];
 export function recalculateLocalPocRules(correction:LocalPocCorrection,imageQuality?:PocQuality):{context:LocalPocResult["context"];ruleResult:LocalPocResult["ruleResult"];extractedFields:string[];indeterminateFields:string[];limitations:string[]};
 export function localPocToRuleContext(measurements:LocalPocResult["measurements"],source?:LocalPocCorrection["source"]):{context:LocalPocResult["context"];extractedFields:string[];indeterminateFields:string[];limitations:string[]};

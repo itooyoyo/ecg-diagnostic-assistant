@@ -32,6 +32,32 @@ test("layout detector can identify six separated waveform bands",()=>{
   assert.equal(result.layoutType,"six_by_two");
 });
 
+test("layout detector identifies a clear three by four structure",()=>{
+  const gray=syntheticLayout({width:900,height:360,rows:3});
+  assert.equal(detectSupportedLayout(gray).layoutType,"three_by_four");
+});
+
+test("layout detector returns unknown when structural evidence is ambiguous",()=>{
+  const width=700,height=360,data=new Uint8ClampedArray(width*height).fill(255);
+  for(let y=40;y<height;y+=47)for(let x=30;x<width-30;x+=29)data[y*width+x]=0;
+  assert.equal(detectSupportedLayout({width,height,data}).layoutType,"unknown");
+});
+
+test("layout detector tolerates large top and bottom margins in six by two",()=>{
+  const gray=syntheticLayout({width:800,height:500,rows:6,marginRatio:.15});
+  assert.equal(detectSupportedLayout(gray).layoutType,"six_by_two");
+});
+
+test("layout detector uses row structure instead of aspect-ratio fallback for wide three by four",()=>{
+  const gray=syntheticLayout({width:1500,height:360,rows:3});
+  assert.equal(detectSupportedLayout(gray).layoutType,"three_by_four");
+});
+
+test("partially cropped layout returns unknown instead of guessing",()=>{
+  const gray=syntheticLayout({width:800,height:480,rows:6,rightHalf:false});
+  assert.equal(detectSupportedLayout(gray).layoutType,"unknown");
+});
+
 test("quality gate stops an undersized blank image",()=>{
   const quality=assessImageQuality({width:200,height:120,data:new Uint8ClampedArray(200*120).fill(255)});
   assert.equal(quality.status,"stop");
@@ -73,3 +99,14 @@ test("polyline simplification retains endpoints",()=>{
   const points=Array.from({length:20},(_,x)=>({x,y:10}));const simplified=simplifyPolyline(points,4);
   assert.deepEqual(simplified[0],points[0]);assert.deepEqual(simplified.at(-1),points.at(-1));assert.ok(simplified.length<points.length);
 });
+
+function syntheticLayout({width,height,rows,marginRatio=.04,rightHalf=true}){
+  const data=new Uint8ClampedArray(width*height).fill(255),margin=height*marginRatio,usable=height-2*margin;
+  for(let row=0;row<rows;row+=1){
+    const center=Math.round(margin+(row+.5)*usable/rows);
+    for(let y=center-2;y<=center+2;y+=1)for(let x=20;x<width-20;x+=3){
+      if(rightHalf||x<width/2)data[y*width+x]=0;
+    }
+  }
+  return {width,height,data};
+}
