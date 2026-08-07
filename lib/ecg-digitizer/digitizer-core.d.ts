@@ -12,7 +12,8 @@ export function estimatePaperQuad(gray:GrayImage):{status:"candidate"|"not_detec
 export function rectifyQuad(gray:GrayImage,corners:Point[]|null):GrayImage;
 export function detectGrid(gray:GrayImage):{detected:boolean;xPeriod:number|null;yPeriod:number|null;confidence:"medium"|"low"};
 export function segmentStandard3x4(width:number,height:number,marginRatio?:number):Array<{lead:LeadName;status:"template_candidate";bounds:Bounds}>;
+export function segmentStandard3x4WithLongII(width:number,height:number,mainBottomRatio:number,marginRatio?:number):Array<{lead:LeadName;status:"template_candidate";bounds:Bounds}>;
 export function segmentStandard6x2(width:number,height:number,marginRatio?:number):Array<{lead:LeadName;status:"template_candidate";bounds:Bounds}>;
-export function detectSupportedLayout(gray:GrayImage):{layoutType:"three_by_four"|"six_by_two"|"unknown";confidence:"high"|"medium"|"indeterminate";bandCount:number;threeScore:number;sixScore:number;aspectRatio:number};
+export function detectSupportedLayout(gray:GrayImage):{layoutType:"three_by_four"|"three_by_four_with_long_ii"|"six_by_two"|"unknown";confidence:"high"|"medium"|"indeterminate";bandCount:number;threeScore:number;sixScore:number;aspectRatio:number;mainBottomRatio:number|null};
 export function extractPolyline(gray:GrayImage,region:Bounds,options?:{threshold?:number;minPointDistance?:number}):{status:"extracted"|"indeterminate";baselineY:number|null;points:Point[];limitations:string[]};
 export function simplifyPolyline(points:Point[],minDistance?:number):Point[];

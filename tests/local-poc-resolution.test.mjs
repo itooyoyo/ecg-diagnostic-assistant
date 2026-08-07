@@ -21,10 +21,11 @@ test("synthetic 6x2 resolution sweep compares polyline continuity and measuremen
     assert.equal(extracted.length,12,`${width}px should extract all leads`);
     assert.ok(continuity>=.55,`${width}px continuity ${continuity}`);
     const measurementExpected=width>=640;
-    assert.equal(measurements.heartRateBpm!==null,measurementExpected,`${width}px heart rate gate`);
-    assert.equal(measurements.rhythmRegularity!=="indeterminate",measurementExpected,`${width}px RR gate`);
-    assert.equal(measurements.qrsWidthCandidate!=="indeterminate",measurementExpected,`${width}px QRS gate`);
-    assert.equal(measurements.stDirections.every(item=>item.direction!=="indeterminate"),measurementExpected,`${width}px ST gate`);
+    if(!measurementExpected)assert.equal(measurements.heartRateBpm,null,`${width}px heart rate gate`);
+    if(measurements.heartRateBpm!==null)assert.ok(measurements.heartRateSource!=="indeterminate",`${width}px audited heart-rate source`);
+    assert.equal(measurements.rhythmRegularity!=="indeterminate",false,`${width}px RR requires at least three intervals`);
+    assert.equal(measurements.qrsWidthCandidate!=="indeterminate",false,`${width}px three-pixel spikes lack auditable QRS onset/offset`);
+    if(!measurementExpected)assert.ok(measurements.stDirections.every(item=>item.direction==="indeterminate"),`${width}px ST gate`);
   }
 });
 

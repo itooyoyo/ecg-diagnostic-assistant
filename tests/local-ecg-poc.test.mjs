@@ -36,6 +36,23 @@ test("V1-V3 depression is mapped without inventing J-point measurements",()=>{
  assert.equal(result.context.quality.jPointClear,false);
 });
 
+test("nonadjacent V3 and V5 elevations do not create contiguous ST elevation",()=>{
+ const result=localPocToRuleContext(measurements({stDirections:st({V3:"elevation",V5:"elevation"})}));
+ assert.equal(result.context.ecg.contiguousStElevation,false);
+});
+
+test("existing inferior adjacency definition remains active",()=>{
+ const result=localPocToRuleContext(measurements({stDirections:st({II:"elevation",III:"elevation"})}));
+ assert.equal(result.context.ecg.contiguousStElevation,true);
+});
+
+test("unreliable field candidates remain absent from rule context",()=>{
+ const result=localPocToRuleContext(measurements({heartRateBpm:null,rhythmRegularity:"indeterminate",qrsWidthCandidate:"indeterminate",stDirections:st({V2:"indeterminate"})}));
+ assert.equal(result.context.ecg.veryRapidRate,false);
+ assert.equal(result.context.ecg.wideQrs,false);
+ assert.ok(result.indeterminateFields.includes("heartRateBpm"));
+});
+
 test("physician correction recalculates rules without image input",()=>{
  const result=recalculateLocalPocRules({heartRateBpm:44,rhythmRegularity:"regular",qrsWidthCandidate:"wide",stDirections:st(),source:"physician_corrected"});
  assert.equal(result.context.ecg.bradycardia,true);

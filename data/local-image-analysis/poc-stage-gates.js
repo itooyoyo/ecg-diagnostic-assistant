@@ -11,12 +11,13 @@ export const LOCAL_POC_STAGE_THRESHOLDS=Object.freeze({
 
 export function getPocLeadDimensions(width,height,layoutType){
   if(layoutType==="three_by_four")return {width:width*.92/4,height:height*.92/3};
+  if(layoutType==="three_by_four_with_long_ii")return {width:width*.92/4,height:height*.70/3};
   if(layoutType==="six_by_two")return {width:width*.95/2,height:height*.95/6};
   return {width:0,height:0};
 }
 
 export function evaluatePocStageGates({width,height,layoutType,gridDetected,imageQualityAdequate=true}){
-  const layoutKnown=layoutType==="three_by_four"||layoutType==="six_by_two";
+  const layoutKnown=layoutType==="three_by_four"||layoutType==="three_by_four_with_long_ii"||layoutType==="six_by_two";
   const leadPixels=getPocLeadDimensions(width,height,layoutType);
   const meets=stage=>width>=stage.minimumWidthPx&&height>=stage.minimumHeightPx&&leadPixels.width>=stage.minimumPixelsPerLeadWidth&&leadPixels.height>=stage.minimumPixelsPerLeadHeight;
   const layout=layoutKnown&&meets(LOCAL_POC_STAGE_THRESHOLDS.layout);

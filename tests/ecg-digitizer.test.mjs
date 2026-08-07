@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assessImageQuality, detectGrid, detectSupportedLayout, extractPolyline, rectifyQuad, rotateGray, segmentStandard3x4, segmentStandard6x2, simplifyPolyline, toGrayscale } from "../lib/ecg-digitizer/digitizer-core.js";
+import { assessImageQuality, detectGrid, detectSupportedLayout, extractPolyline, rectifyQuad, rotateGray, segmentStandard3x4, segmentStandard3x4WithLongII, segmentStandard6x2, simplifyPolyline, toGrayscale } from "../lib/ecg-digitizer/digitizer-core.js";
 
 test("skew correction rotates locally without changing the canvas dimensions",()=>{
   const gray={width:5,height:5,data:new Uint8ClampedArray(25).fill(255)};
@@ -16,6 +16,12 @@ test("standard 3x4 segmentation returns all 12 unique lead regions",()=>{
   assert.equal(regions.length,12);
   assert.equal(new Set(regions.map(region=>region.lead)).size,12);
   assert.deepEqual(regions.map(region=>region.lead),["I","aVR","V1","V4","II","aVL","V2","V5","III","aVF","V3","V6"]);
+});
+
+test("3x4 plus long II segmentation keeps all 12 leads above the rhythm strip",()=>{
+  const regions=segmentStandard3x4WithLongII(1600,800,.72);
+  assert.equal(regions.length,12);
+  assert.ok(regions.every(region=>region.bounds.y+region.bounds.height<800*.75));
 });
 
 test("standard 6x2 segmentation returns the correct left and right lead order",()=>{
