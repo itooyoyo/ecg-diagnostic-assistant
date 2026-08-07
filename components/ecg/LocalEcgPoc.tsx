@@ -56,6 +56,7 @@ function CenterlineAuditView({result,previewUrl}:{result:LocalPocResult;previewU
  const trace=result.longII, audit=trace?.audit;if(!trace||!audit)return null;const roi=audit.roi,viewBox=`${roi.x} ${roi.y} ${Math.max(1,roi.width)} ${Math.max(1,roi.height)}`;
  const accepted=result.measurements.peakCandidates.filter(item=>item.accepted),rejected=result.measurements.peakCandidates.filter(item=>!item.accepted);
  const longMissing=audit.missingSegments.filter(segment=>segment.length>=5),shownMissing=longMissing.slice(0,20);
+ const connected=audit.connected,waveformComponents=connected?.components.filter(component=>component.candidateType==="waveform_candidate")??[],gridComponents=connected?.components.filter(component=>component.candidateType==="grid_candidate")??[];
  const pointString=(points:Array<{x:number;y:number}>)=>points.map(point=>`${point.x},${point.y}`).join(" ");
  return <section aria-labelledby="long-ii-audit-title"><h5 id="long-ii-audit-title">long II 波形抽出監査</h5>
   <p>tracking coverage {(audit.trackingCoverage*100).toFixed(1)}%（{audit.trackedColumns}/{audit.totalColumns}列）／missing {audit.missingColumns}列／ambiguous {audit.ambiguousColumns}列</p>
@@ -69,6 +70,8 @@ function CenterlineAuditView({result,previewUrl}:{result:LocalPocResult;previewU
   </svg>
   <p className="muted">黄: 二値化候補／橙: 旧Polyline／シアン: 改善centerline／緑: accepted／赤: rejected</p>
   <p>missing segments: {audit.missingSegments.length}区間（5列以上 {longMissing.length}区間）{shownMissing.length?`：${shownMissing.map(segment=>`${Math.round(segment.startX)}–${Math.round(segment.endX)} (${segment.length})`).join("、")}${longMissing.length>shownMissing.length?"…":""}`:""}</p>
+  {connected&&<><h6>Connected Component A/B監査</h6><p>components {connected.components.length}／waveform {waveformComponents.length}／grid {gridComponents.length}／segments {connected.segments.length}／QRS candidates {connected.qrsCandidates.length}／clusters {connected.qrsClusters.length}／R peak candidates {connected.rPeakCandidates.length}／coverage {(connected.coverage*100).toFixed(1)}%／gaps {connected.gaps.length}／quality {connected.quality}</p>
+   <svg viewBox={viewBox} role="img" aria-label="Connected Component波形segmentとQRS候補の重ね合わせ">{previewUrl&&<image href={previewUrl} x="0" y="0" width={audit.sourceWidth} height={audit.sourceHeight} preserveAspectRatio="none" opacity=".55"/>}{connected.segments.map(segment=><polyline key={`segment-${segment.componentId}`} points={pointString(segment.points)} fill="none" stroke="#a78bfa" strokeWidth="1.1"/>)}{connected.qrsClusters.map(cluster=><rect key={`qrs-${cluster.id}`} x={cluster.boundingBox.x} y={cluster.boundingBox.y} width={cluster.boundingBox.width} height={cluster.boundingBox.height} fill="none" stroke="#22c55e" strokeWidth="1.2"/>)}{connected.rPeakCandidates.map(candidate=><circle key={`cc-r-${candidate.clusterId}`} cx={candidate.x} cy={candidate.y} r="3" fill="#facc15"/>)}</svg><p className="muted">紫: component segment／緑枠: QRS cluster／黄点: component由来R peak候補</p></>}
   <p>HR source: {result.measurements.heartRateSource}／limitations: {[...trace.limitations,...result.measurements.limitations].join("、")||"なし"}</p>
  </section>
 }

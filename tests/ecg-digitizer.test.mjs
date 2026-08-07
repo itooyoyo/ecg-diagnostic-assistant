@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assessImageQuality, detectGrid, detectSupportedLayout, extractPolyline, extractWaveformCenterline, rectifyQuad, rotateGray, segmentStandard3x4, segmentStandard3x4WithLongII, segmentStandard6x2, simplifyPolyline, toGrayscale } from "../lib/ecg-digitizer/digitizer-core.js";
+import { assessImageQuality, detectGrid, detectSupportedLayout, extractConnectedWaveformSegments, extractPolyline, extractWaveformCenterline, rectifyQuad, rotateGray, segmentStandard3x4, segmentStandard3x4WithLongII, segmentStandard6x2, simplifyPolyline, toGrayscale } from "../lib/ecg-digitizer/digitizer-core.js";
 
 test("skew correction rotates locally without changing the canvas dimensions",()=>{
   const gray={width:5,height:5,data:new Uint8ClampedArray(25).fill(255)};
@@ -153,6 +153,37 @@ test("centerline does not over-smooth QRS amplitude",()=>{
   assert.ok(amplitude>=28);
 });
 
+test("connected component labeling separates disconnected traces",()=>{
+  const gray=componentTrace({separate:true}),result=extractConnectedWaveformSegments(gray,{x:0,y:0,width:gray.width,height:gray.height},{threshold:120,grid:{xPeriod:10,yPeriod:10}});
+  assert.ok(result.components.length>=2);
+});
+
+test("connected tracking excludes a full-width grid component",()=>{
+  const gray=componentTrace({grid:true}),result=extractConnectedWaveformSegments(gray,{x:0,y:0,width:gray.width,height:gray.height},{threshold:205,grid:{xPeriod:10,yPeriod:10}});
+  assert.equal(result.qrsCandidates.some(component=>component.candidateType==="grid_candidate"),false);
+});
+
+test("connected tracking preserves a steep QRS component",()=>{
+  const gray=componentTrace({qrs:true}),result=extractConnectedWaveformSegments(gray,{x:0,y:0,width:gray.width,height:gray.height},{threshold:120,grid:{xPeriod:10,yPeriod:10}});
+  assert.ok(result.qrsCandidates.some(component=>component.height>=14));
+});
+
+test("connected tracking classifies calibration and text-like left artifacts",()=>{
+  const gray=componentTrace({calibration:true,label:true}),result=extractConnectedWaveformSegments(gray,{x:0,y:0,width:gray.width,height:gray.height},{threshold:120,grid:{xPeriod:10,yPeriod:10}});
+  assert.ok(result.components.some(component=>component.candidateType==="calibration_candidate"));
+  assert.ok(result.components.some(component=>component.candidateType==="text_candidate"));
+});
+
+test("connected components generate short waveform segments and preserve gaps",()=>{
+  const gray=componentTrace({separate:true}),result=extractConnectedWaveformSegments(gray,{x:0,y:0,width:gray.width,height:gray.height},{threshold:120,grid:{xPeriod:10,yPeriod:10}});
+  assert.ok(result.segments.length>=2);assert.ok(result.gaps.some(gap=>gap.length>5));
+});
+
+test("QRS components are clustered to one R peak candidate",()=>{
+  const gray=componentTrace({doubleQrs:true}),result=extractConnectedWaveformSegments(gray,{x:0,y:0,width:gray.width,height:gray.height},{threshold:120,grid:{xPeriod:10,yPeriod:10}});
+  assert.equal(result.rPeakCandidates.length,result.qrsClusters.length);
+});
+
 function syntheticLayout({width,height,rows,marginRatio=.04,rightHalf=true}){
   const data=new Uint8ClampedArray(width*height).fill(255),margin=height*marginRatio,usable=height-2*margin;
   for(let row=0;row<rows;row+=1){
@@ -175,5 +206,16 @@ function syntheticTrace({width,height,horizontalGrid=false,qrs=false,calibration
   }
   if(calibration)for(let x=8;x<=20;x+=1)for(let y=15;y<=70;y+=1)if(x===8||x===20||y===15)data[y*width+x]=0;
   if(label)for(let x=4;x<=14;x+=1)for(let y=10;y<=35;y+=3)data[y*width+x]=0;
+  return {width,height,data};
+}
+
+function componentTrace({separate=false,grid=false,qrs=false,doubleQrs=false,calibration=false,label=false}={}){
+  const width=240,height=100,data=new Uint8ClampedArray(width*height).fill(255),draw=(x,y,value=10)=>{if(x>=0&&x<width&&y>=0&&y<height)data[y*width+x]=value};
+  for(let x=30;x<210;x+=1){if(separate&&x>=105&&x<=125)continue;draw(x,60)}
+  if(grid)for(let x=0;x<width;x+=1)draw(x,20,180);
+  if(qrs||doubleQrs)for(const center of doubleQrs?[100,104]:[120])for(let y=35;y<=65;y+=1)draw(center,y);
+  if(calibration)for(let y=20;y<=70;y+=1){draw(8,y);draw(20,y)}
+  if(calibration)for(let x=8;x<=20;x+=1)draw(x,20);
+  if(label)for(let x=24;x<=32;x+=1)for(let y=8;y<=18;y+=2)draw(x,y);
   return {width,height,data};
 }
