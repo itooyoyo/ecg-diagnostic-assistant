@@ -1,0 +1,17 @@
+# Versions resolved from the upstream requirements.txt on 2026-08-07.
+# The upstream repository and weights are intentionally stored outside Git.
+matplotlib==3.11.1
+numpy==2.5.1
+opencv-python==5.0.0.93
+pillow==12.3.0
+psutil==7.2.2
+PyYAML==6.0.3
+scikit-image==0.26.0
+scikit-learn==1.9.0
+scipy==1.18.0
+torch==2.13.0
+torchaudio==2.11.0
+torchvision==0.28.0
+torch-tps==1.2.2
+transformers==5.14.1
+yacs==0.1.8

@@ -40,3 +40,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local Open ECG Digitizer PoC artifacts (never commit models, source checkout, or outputs)
+/.venv-open-ecg/
+/.oed-venv/
+/.open-ecg-cache/
+/.local-models/open-ecg-digitizer/
+/tools/open-ecg-digitizer-poc/input/
+/tools/open-ecg-digitizer-poc/output/
+**/__pycache__/
+*.pyc
