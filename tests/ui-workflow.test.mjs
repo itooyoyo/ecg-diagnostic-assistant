@@ -22,13 +22,35 @@ test("clinician review includes all requested objective findings", async () => {
 
 test("clinical result sections keep the requested order", async () => {
   const source = await readFile(workspacePath, "utf8");
-  const labels = ["診断候補（優先順位付き）","診断理由","原因疾患鑑別","推奨追加検査","初期対応","Clinical Pearl"];
+  const labels = ["診断候補（優先順位付き）","診断理由","原因疾患鑑別","判定に不足している情報","次に確認すること","追加検査","初期対応","Clinical Pearl"];
   let cursor = -1;
   for (const label of labels) {
     const next = source.indexOf(`title=\"${label}\"`);
     assert.ok(next > cursor, `${label} should follow the preceding result section`);
     cursor = next;
   }
+});
+
+test("ordinary clinician input is reduced to seven clinical sections", async()=>{
+  const source=await readFile(new URL("../components/ecg/SimplifiedClinicalReview.tsx",import.meta.url),"utf8");
+  const labels=["心拍数・リズム","P波・PR","QRS","ST","T波","QT / QTc","その他の重要所見・臨床情報"];
+  let cursor=-1;
+  for(const label of labels){const next=source.indexOf(`title="${label}"`);assert.ok(next>cursor,label);cursor=next}
+  assert.match(source,/未入力項目はunknownとして扱い/);
+});
+
+test("bradycardia ST and placement details are conditionally disclosed",async()=>{
+  const source=await readFile(new URL("../components/ecg/SimplifiedClinicalReview.tsx",import.meta.url),"utf8");
+  assert.match(source,/n\(heartRate\).*<50/);
+  assert.match(source,/stDirection==="elevation"\|\|stDirection==="depression"/);
+  assert.match(source,/placementWarning&&<details open>/);
+});
+
+test("advanced analysis stays closed by default while detailed modules remain available",async()=>{
+  const source=await readFile(workspacePath,"utf8");
+  assert.match(source,/<details className="advanced-analysis">/);
+  assert.doesNotMatch(source,/<details className="advanced-analysis" open>/);
+  for(const moduleName of ["TachyarrhythmiaModule","BradyarrhythmiaModule","ElectrolyteModule","InterpretationNavigator","SgarbossaModule"])assert.match(source,new RegExp(`<${moduleName}`));
 });
 
 test("diagnostic results expose reasons, Red Flag, priorities, and care timeline", async () => {

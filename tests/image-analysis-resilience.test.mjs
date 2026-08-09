@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 const route=fs.readFileSync("app/api/ecg/analyze/route.ts","utf8");
 const workspace=fs.readFileSync("components/ecg/EcgWorkspace.tsx","utf8");
+const simplifiedReview=fs.readFileSync("components/ecg/SimplifiedClinicalReview.tsx","utf8");
 const cropper=fs.readFileSync("components/ecg/EcgImageCropper.tsx","utf8");
 const processing=fs.readFileSync("lib/ecg-image/client-image-processing.ts","utf8");
 const localAdapter=fs.readFileSync("lib/ecg-image/local-ecg-image-analysis-adapter.ts","utf8");
@@ -20,7 +21,7 @@ test("missing local model returns explicit error",()=>{assert.match(localAdapter
 test("missing model still offers physician input",()=>{assert.match(workspace,/医師入力で続ける/);assert.match(workspace,/continueManually/)});
 test("manual values start empty",()=>assert.match(workspace,/aiValue:"",clinicianValue:""/));
 test("no fixed normal value is inserted",()=>{assert.doesNotMatch(workspace,/aiValue:"(?:正常|洞調律|72 bpm)/);assert.match(workspace,/固定値や疑似所見は使用しません/)});
-test("physician values recalculate existing engine",()=>{assert.match(workspace,/confirmedValue/);assert.match(workspace,/buildIntegratedInterpretation/);assert.match(workspace,/入力所見で再計算/)});
+test("physician values recalculate existing engine",()=>{assert.match(workspace,/confirmedValue/);assert.match(workspace,/buildIntegratedInterpretation/);assert.match(simplifiedReview,/入力所見で結果を再計算/)});
 test("WebGPU is preferred in a secure supported context",()=>assert.match(localAdapter,/"gpu" in navigator&&globalThis\.isSecureContext/));
 test("WASM is the local CPU fallback",()=>{assert.match(localAdapter,/typeof WebAssembly!=="undefined"/);assert.match(localAdapter,/return "wasm"/)});
 test("OpenAI environment variables are absent from normal path",()=>{assert.doesNotMatch(workspace,/OPENAI_|ECG_IMAGE_ANALYSIS_PROVIDER/);assert.doesNotMatch(localAdapter,/OPENAI_|ECG_IMAGE_ANALYSIS_PROVIDER/)});
