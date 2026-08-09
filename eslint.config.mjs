@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    ".local-models/**",
+    ".oed-venv/**",
+    ".open-ecg-cache/**",
+    ".venv-open-ecg/**",
+    "tools/open-ecg-digitizer-poc/**",
   ]),
 ]);
 

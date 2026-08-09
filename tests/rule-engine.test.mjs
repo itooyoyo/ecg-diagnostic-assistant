@@ -53,13 +53,14 @@ test("local image adapter cannot produce a diagnosis",()=>{
   assert.doesNotMatch(localAdapter,/diagnos(?:is|tic)|differential|treatment|診断候補|鑑別診断|初期対応/i);
 });
 
-test("Version 2 UI is clinician-input first and hides future extraction",()=>{
+test("Version 2 UI is clinician-input first and does not advertise future extraction",()=>{
   const source=fs.readFileSync("components/ecg/EcgWorkspace.tsx","utf8");
   assert.match(source,/const enableFutureLocalExtraction=false/);
   assert.match(source,/心電図ルールベース解析エンジン/);
   assert.match(source,/医師による主要所見入力/);
   assert.match(source,/ルールベース解析結果/);
-  assert.match(source,/画像から所見抽出のみ自動化します。診断ロジックは変更しません。/);
+  assert.match(source,/心電図画像を参照しながら所見を入力してください。入力された所見をルールに基づいて解析します。/);
+  assert.doesNotMatch(source,/ローカル心電図解析モデルを開発中です|将来はローカル画像解析モデルを追加/);
 });
 
 test("candidate Rule IDs are unique and follow the stable naming convention",()=>{

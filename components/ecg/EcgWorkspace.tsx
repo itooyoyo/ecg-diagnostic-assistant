@@ -225,9 +225,7 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
       <section className="card version2-intro" aria-labelledby="version2-intro-title">
         <div className="eyebrow">ECG Diagnostic Assistant Version 2</div>
         <h3 id="version2-intro-title">心電図ルールベース解析エンジン</h3>
-        <p>本アプリはローカル心電図解析モデルを開発中です。</p>
-        <p>現時点では、医師が主要所見を入力し、入力された所見をもとに本アプリのルールベース解析エンジンが診断候補・鑑別・追加検査・初期対応を提示します。</p>
-        <p>将来はローカル画像解析モデルを追加し、画像から所見抽出のみ自動化します。診断ロジックは変更しません。</p>
+        <p>心電図画像を参照しながら所見を入力してください。入力された所見をルールに基づいて解析します。</p>
       </section>
       <div className="steps compact-steps">{["画像アップロード","医師による主要所見入力","ルールベース解析結果"].map((s,i)=><span className={`step ${i===0?"on":""}`} key={s}>STEP {i+1} · {s}</span>)}</div>
 

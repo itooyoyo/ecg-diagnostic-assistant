@@ -13,6 +13,13 @@
 # testing
 /coverage
 
+# Version 3 research environments and isolated PoC artifacts (kept off main)
+/.local-models/
+/.oed-venv/
+/.open-ecg-cache/
+/.venv-open-ecg/
+/tools/open-ecg-digitizer-poc/
+
 # next.js
 /.next/
 /out/
