@@ -28,7 +28,7 @@ test("OpenAI environment variables are absent from normal path",()=>{assert.does
 test("no image network upload exists in normal path",()=>{assert.doesNotMatch(workspace,/fetch\([^)]*image|FormData|body\.append/);assert.match(localAdapter,/fetch\("\/models\/ecg\/manifest\.json"/)});
 test("Blob URLs are released",()=>assert.match(workspace,/URL\.revokeObjectURL/));
 test("PIN gate remains outside workspace",()=>{const gate=fs.readFileSync("components/auth/EcgAuthGate.tsx","utf8");assert.match(gate,/if\(authenticated\).*EcgWorkspace/s)});
-test("local workspace appears after PIN authentication",()=>{const gate=fs.readFileSync("components/auth/EcgAuthGate.tsx","utf8");assert.match(gate,/<EcgWorkspace/);assert.match(workspace,/LOCAL MODE/)});
+test("Version 2 workspace appears after PIN authentication",()=>{const gate=fs.readFileSync("components/auth/EcgAuthGate.tsx","utf8");assert.match(gate,/<EcgWorkspace/);assert.match(workspace,/>Version 2</)});
 test("existing clinical test suite remains included",()=>assert.equal(packageJson.scripts.test,"node --test tests/*.test.mjs"));
 test("manifest does not claim a model exists",()=>{assert.equal(manifest.modelAvailable,false);assert.equal(manifest.validatedForClinicalUse,false);assert.deepEqual(manifest.supportedFindings,[])});
 test("ONNX Runtime Web is installed",()=>assert.ok(packageJson.dependencies["onnxruntime-web"]));
@@ -37,4 +37,4 @@ test("manual UI contains all requested findings",()=>{for(const label of ["心�
 test("original and processed image state remain separate",()=>{assert.match(workspace,/originalFile/);assert.match(workspace,/processedFile/);assert.match(workspace,/useOriginalImage/)});
 test("image compression stays finite and local",()=>{assert.match(processing,/MAX_COMPRESSION_ATTEMPTS/);assert.doesNotMatch(processing,/fetch\(/)});
 test("mobile preview remains single column",()=>assert.match(css,/@media\(max-width:720px\).*\.upload-preview\{grid-template-columns:1fr\}/s));
-test("normal UI states that images stay on device",()=>assert.match(workspace,/画像処理と所見入力はこの端末内で行われます/));
+test("normal UI states that the image is reference-only and not persisted",()=>{assert.match(workspace,/画像は読影時の参照用です/);assert.match(workspace,/画像は永続保存しません/)});

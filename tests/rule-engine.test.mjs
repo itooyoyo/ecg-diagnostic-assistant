@@ -56,10 +56,10 @@ test("local image adapter cannot produce a diagnosis",()=>{
 test("Version 2 UI is clinician-input first and does not advertise future extraction",()=>{
   const source=fs.readFileSync("components/ecg/EcgWorkspace.tsx","utf8");
   assert.match(source,/const enableFutureLocalExtraction=false/);
-  assert.match(source,/心電図ルールベース解析エンジン/);
-  assert.match(source,/医師による主要所見入力/);
-  assert.match(source,/ルールベース解析結果/);
-  assert.match(source,/心電図画像を参照しながら所見を入力してください。入力された所見をルールに基づいて解析します。/);
+  assert.match(source,/ルールベース診断支援/);
+  assert.match(source,/主要所見を入力/);
+  assert.match(source,/診断候補と理由を確認/);
+  assert.match(source,/心電図画像そのものを自動読影する機能は使用していません/);
   assert.doesNotMatch(source,/ローカル心電図解析モデルを開発中です|将来はローカル画像解析モデルを追加/);
 });
 

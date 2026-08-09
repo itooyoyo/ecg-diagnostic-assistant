@@ -217,14 +217,21 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
       <div className="privacy">EXPLAINABLE RULE ENGINE<br/>医師が確認した所見から既存ルールだけで結果を再計算します</div>
     </aside>
     <main className="main">
-      <header className="topbar"><div><div className="eyebrow">Cardiac navigation console</div><h2>心電図読影・対応支援ツール</h2><p className="subtitle">画像処理と所見入力はこの端末内で行われます</p></div><span className="badge">LOCAL MODE</span></header>
+      <header className="topbar"><div><div className="eyebrow">Cardiac navigation console</div><h2>心電図読影・対応支援ツール</h2><p className="subtitle">心電図画像を参照し、医師が入力した所見を57の臨床ルールで統合します</p></div><span className="badge">Version 2</span></header>
       <NavigatorCard className="navigator-card--mobile" state={navigatorState} comment={navigatorComment}/>
       <section className="card version2-intro" aria-labelledby="version2-intro-title">
-        <div className="eyebrow">ECG Diagnostic Assistant Version 2</div>
-        <h3 id="version2-intro-title">心電図ルールベース解析エンジン</h3>
-        <p>心電図画像を参照しながら所見を入力してください。入力された所見をルールに基づいて解析します。</p>
+        <div className="version2-intro__heading"><div><div className="eyebrow">Version 2</div><h3 id="version2-intro-title">このアプリでできること</h3></div><span className="badge">ルールベース診断支援</span></div>
+        <p>心電図画像を参照しながら主要な所見を入力すると、登録された57の臨床ルールに基づいて所見を統合し、緊急度、Red Flag、診断候補、その判定理由、見逃してはいけない鑑別、追加で確認すべき所見・検査、初期対応を整理して表示します。</p>
+        <p>すべての項目を入力する必要はありません。入力された情報から解析し、不足している情報は追加確認として提示します。</p>
+        <div className="version2-intro__notice"><strong>現在のVersion 2では、心電図画像そのものを自動読影する機能は使用していません。</strong><span>画像は読影時の参照用です。</span></div>
+        <ol className="version2-intro__steps" aria-label="利用手順">
+          <li><span>STEP 1</span><strong>心電図画像を表示</strong></li>
+          <li><span>STEP 2</span><strong>主要所見を入力</strong></li>
+          <li><span>STEP 3</span><strong>診断候補と理由を確認</strong></li>
+        </ol>
+        <p className="version2-intro__note">必要な項目だけ入力できます。未入力項目は正常とはみなされません。</p>
+        <p className="version2-intro__disclaimer">本アプリは診断支援ツールです。最終的な診断・治療判断は、患者背景、症状、バイタル、採血、前回心電図などを含めて担当医が行ってください。</p>
       </section>
-      <div className="steps compact-steps">{["画像アップロード","医師による主要所見入力","ルールベース解析結果"].map((s,i)=><span className={`step ${i===0?"on":""}`} key={s}>STEP {i+1} · {s}</span>)}</div>
 
       <section className="card workflow-card" id="quick-upload"><div className="cardhead"><div><div className="eyebrow">Step 1</div><h3>心電図画像アップロード</h3></div><span className="badge">画像は永続保存しません</span></div>
         {enableFutureLocalExtraction&&<div className="local-analysis-status" role="status"><strong>{localSupport==null?"ローカル実行環境を確認中":localSupport.backend==="webgpu"?"ローカルGPU解析に対応":localSupport.backend==="wasm"?"CPU解析で動作可能":"この端末ではローカル所見抽出に非対応"}</strong><span>{localSupport?.supported?"検証済みモデルを利用できます":localSupport?.reason??"所見抽出モデルは準備中です"}</span></div>}

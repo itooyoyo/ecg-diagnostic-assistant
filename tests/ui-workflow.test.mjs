@@ -13,6 +13,12 @@ test("physician-first workflow exposes the three primary steps", async () => {
   assert.ok(upload >= 0 && review > upload && result > review);
 });
 
+test("Version 2 explains its rule-based scope and three-step use", async()=>{
+  const source=await readFile(workspacePath,"utf8");
+  for(const text of ["このアプリでできること","ルールベース診断支援","登録された57の臨床ルール","心電図画像そのものを自動読影する機能は使用していません","画像は読影時の参照用です","心電図画像を表示","主要所見を入力","診断候補と理由を確認","未入力項目は正常とはみなされません","本アプリは診断支援ツールです"])assert.match(source,new RegExp(text));
+  assert.doesNotMatch(source,/>LOCAL MODE</);
+});
+
 test("clinician review includes all requested objective findings", async () => {
   const source = await readFile(workspacePath, "utf8");
   for (const label of ["心拍数","リズム","P波","PR","QRS幅","軸","R波進行","Q波","ST変化","T波","U波","QT / QTc","PVC","R on T候補","脚ブロック候補","電極装着異常"]) {
@@ -39,9 +45,10 @@ test("ordinary clinician input is reduced to seven clinical sections", async()=>
   assert.match(source,/未入力項目はunknownとして扱い/);
 });
 
-test("bradycardia ST and placement details are conditionally disclosed",async()=>{
+test("bradycardia wide QRS ST and placement details are conditionally disclosed",async()=>{
   const source=await readFile(new URL("../components/ecg/SimplifiedClinicalReview.tsx",import.meta.url),"utf8");
   assert.match(source,/n\(heartRate\).*<50/);
+  assert.match(source,/\["wide","rbbb","lbbb"\]\.includes\(qrsChoice\)/);
   assert.match(source,/stDirection==="elevation"\|\|stDirection==="depression"/);
   assert.match(source,/placementWarning&&<details open>/);
 });
@@ -73,6 +80,7 @@ test("advanced analysis is closed by default and mobile UI stacks without overfl
   assert.match(source, /<details className="advanced-analysis">/);
   assert.doesNotMatch(source, /<details className="advanced-analysis" open/);
   assert.match(css, /@media\(max-width:720px\).*\.finding-editor\{grid-template-columns:1fr\}/s);
+  assert.match(css, /@media\(max-width:720px\).*\.version2-intro__steps\{grid-template-columns:1fr\}/s);
 });
 
 test("image upload supports selection, drop, preview, removal and exact image MIME types", async()=>{
