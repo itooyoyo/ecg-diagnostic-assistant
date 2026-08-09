@@ -39,6 +39,12 @@ test("PVC with unknown QT does not treat QT as positive",()=>{
   assert.notEqual(result.urgency,"emergency");
 });
 
+test("unknown R-on-T is not treated as a positive high-risk finding",()=>{
+  const result=integrated({clinical:{syncope:true},ecg:{qtProlonged:true,qtMarked:true,rOnT:null}});
+  assert.equal(result.diagnosticCandidates.some(x=>x.id==="tdp-risk"),false);
+  assert.notEqual(result.urgency,"emergency");
+});
+
 test("established TdP or polymorphic wide tachycardia retains emergency priority",()=>{
   for(const ecg of [{qtProlonged:true,tdp:true},{qtProlonged:true,polymorphicWideTachycardia:true}]){
     const result=integrated({ecg});
