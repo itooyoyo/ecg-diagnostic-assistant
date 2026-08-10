@@ -21,7 +21,7 @@ test("missing local model returns explicit error",()=>{assert.match(localAdapter
 test("missing model still offers physician input",()=>{assert.match(workspace,/医師入力で続ける/);assert.match(workspace,/continueManually/)});
 test("manual values start empty",()=>assert.match(workspace,/aiValue:"",clinicianValue:""/));
 test("no fixed normal value is inserted",()=>{assert.doesNotMatch(workspace,/aiValue:"(?:正常|洞調律|72 bpm)/);assert.match(workspace,/固定値や疑似所見は使用しません/)});
-test("physician values recalculate existing engine",()=>{assert.match(workspace,/confirmedValue/);assert.match(workspace,/buildIntegratedInterpretation/);assert.match(simplifiedReview,/入力所見で結果を再計算/)});
+test("physician values recalculate existing engine",()=>{assert.match(workspace,/confirmedValue/);assert.match(workspace,/buildIntegratedInterpretation/);assert.match(simplifiedReview,/>解析する<\/button>/)});
 test("WebGPU is preferred in a secure supported context",()=>assert.match(localAdapter,/"gpu" in navigator&&globalThis\.isSecureContext/));
 test("WASM is the local CPU fallback",()=>{assert.match(localAdapter,/typeof WebAssembly!=="undefined"/);assert.match(localAdapter,/return "wasm"/)});
 test("OpenAI environment variables are absent from normal path",()=>{assert.doesNotMatch(workspace,/OPENAI_|ECG_IMAGE_ANALYSIS_PROVIDER/);assert.doesNotMatch(localAdapter,/OPENAI_|ECG_IMAGE_ANALYSIS_PROVIDER/)});
@@ -37,4 +37,4 @@ test("manual UI contains all requested findings",()=>{for(const label of ["心�
 test("original and processed image state remain separate",()=>{assert.match(workspace,/originalFile/);assert.match(workspace,/processedFile/);assert.match(workspace,/useOriginalImage/)});
 test("image compression stays finite and local",()=>{assert.match(processing,/MAX_COMPRESSION_ATTEMPTS/);assert.doesNotMatch(processing,/fetch\(/)});
 test("mobile preview remains single column",()=>assert.match(css,/@media\(max-width:720px\).*\.upload-preview\{grid-template-columns:1fr\}/s));
-test("normal UI states that the image is reference-only and not persisted",()=>{assert.match(workspace,/画像は読影時の参照用です/);assert.match(workspace,/画像は永続保存しません/)});
+test("normal UI states that the image is optional reference-only and not persisted",()=>{assert.match(workspace,/画像は任意の参照用/);assert.match(workspace,/画像は永続保存しません/)});

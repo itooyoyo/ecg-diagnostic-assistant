@@ -15,7 +15,7 @@ test("physician-first workflow exposes the three primary steps", async () => {
 
 test("Version 2 explains its rule-based scope and three-step use", async()=>{
   const source=await readFile(workspacePath,"utf8");
-  for(const text of ["このアプリでできること","ルールベース診断支援","登録された57の臨床ルール","心電図画像そのものを自動読影する機能は使用していません","画像は読影時の参照用です","心電図画像を表示","主要所見を入力","診断候補と理由を確認","未入力項目は正常とはみなされません","本アプリは診断支援ツールです"])assert.match(source,new RegExp(text));
+  for(const text of ["このアプリでできること","ルールベース診断支援","登録された57の臨床ルール","Version 2では心電図画像そのものの自動読影は行いません","画像は任意の参照用","主要所見を入力","解析する","診断候補と理由を確認","未入力項目は正常とはみなされません","本アプリは診断支援ツールです"])assert.match(source,new RegExp(text));
   assert.doesNotMatch(source,/>LOCAL MODE</);
 });
 
@@ -114,8 +114,9 @@ test("local model absence and legacy cloud code are explicitly separated",async(
 test("manual findings stay empty before physician entry",async()=>{
   const source=await readFile(workspacePath,"utf8");
   assert.match(source,/aiValue:""/);
-  assert.match(source,/analysis\.status!=="success"/);
-  assert.match(source,/医師入力で続ける/);
+  assert.match(source,/画像なしで解析可能/);
+  assert.match(source,/showClinicalResults/);
+  assert.doesNotMatch(source,/画像を選択し「医師入力で続ける」を選んでください/);
   assert.doesNotMatch(source,/ai:"72 bpm"/);
 });
 
