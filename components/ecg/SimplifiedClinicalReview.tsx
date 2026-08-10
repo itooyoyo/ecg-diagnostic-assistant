@@ -2,6 +2,7 @@
 
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { LeadPlacementGuide } from "@/components/ecg/LeadPlacementGuide";
+import { FindingEducationGuide } from "@/components/ecg/FindingEducationGuide";
 import type { BradyInput } from "@/types/bradyarrhythmia";
 import type { ConductionInput } from "@/types/conduction-interpretation";
 import type { QtInterpretationInput } from "@/types/qt-interpretation";
@@ -56,7 +57,7 @@ export function SimplifiedClinicalReview({heartRate,setHeartRate,brady,setBrady,
       <label>R on T<select value={guidance.rOnT} onChange={e=>setRonT(e.target.value as ReviewTernary)}><option value="unentered">未入力</option><option value="absent">なし</option><option value="present">あり</option><option value="indeterminate">判定困難</option></select></label>
       <label>digitalis使用<select value={guidance.digitalisUse} onChange={e=>setGuidance(x=>({...x,digitalisUse:e.target.value as ReviewTernary}))}><option value="unentered">未入力</option><option value="absent">なし</option><option value="present">あり</option><option value="indeterminate">不明</option></select></label>
     </div>
-    <details className="finding-education"><summary aria-label="心電図所見の見方を開閉">見方 ?：心電図所見の模式図</summary><div className="education-diagram-grid">
+    <details className="finding-education legacy-finding-education"><summary aria-label="心電図所見の見方を開閉">見方 ?：心電図所見の模式図</summary><div className="education-diagram-grid">
       <MiniDiagram title="P-QRS-ST-T-U基本" path="M5 50 L35 50 Q45 25 55 50 L85 50 L95 65 L108 8 L120 70 L132 50 L175 50 Q195 20 215 50 L245 50 Q255 38 265 50 L295 50"/>
       <MiniDiagram title="PR・QRS・ST・QT" path="M5 50 L35 50 Q45 28 55 50 L82 50 L94 65 L108 8 L121 70 L135 50 L205 50 Q230 22 255 50 L295 50"/>
       <MiniDiagram title="Δ波" path="M5 55 L60 55 Q78 48 92 30 L105 8 L118 67 L135 55 L295 55"/>
@@ -67,6 +68,7 @@ export function SimplifiedClinicalReview({heartRate,setHeartRate,brady,setBrady,
       <MiniDiagram title="LBBB二次性ST-T" path="M5 50 L55 50 L70 20 L95 70 L125 15 L150 55 L205 55 Q240 85 275 55 L295 55"/>
       <MiniDiagram title="reciprocal change" path="M5 50 L60 50 L75 10 L90 65 L110 30 L145 30 M155 50 L210 50 L225 90 L240 35 L260 70 L295 70"/>
     </div><p>R on TはPVCが先行拍のT波終末付近へ重なる所見です。誘導分布、装着位置、前回心電図も合わせて確認します。</p></details>
+    <FindingEducationGuide heartRate={heartRate} brady={brady} conduction={conduction} qt={qt}/>
     {qrsChoice==="lbbb"&&<aside className="clinical-warning"><strong>LBBBでは通常のST評価が困難です。</strong><p>二次性ST-T変化を伴うため、虚血症状がある場合は詳細解析のSgarbossa／modified Sgarbossa評価も確認してください。</p></aside>}
     {pvc.clinicianClassification==="pvc"&&["unentered","indeterminate"].includes(guidance.rOnT)&&<p className="clinical-warning">PVCが先行するT波上またはT波終末付近へ重なっていないか確認してください。</p>}
     <button className="btn primary-action" type="button" onClick={onRecalculate}>解析する</button>

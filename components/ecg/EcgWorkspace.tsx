@@ -242,11 +242,11 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
       <div className="privacy">EXPLAINABLE RULE ENGINE<br/>医師が確認した所見から既存ルールだけで結果を再計算します</div>
     </aside>
     <main className="main">
-      <header className="topbar"><div><div className="eyebrow">Cardiac navigation console</div><h2>心電図読影・対応支援ツール</h2><p className="subtitle">心電図画像を参照し、医師が入力した所見を57の臨床ルールで統合します</p></div><span className="badge">Version 2</span></header>
+      <header className="topbar"><div><div className="eyebrow">Cardiac navigation console</div><h2>心電図読影・対応支援ツール</h2><p className="subtitle">心電図画像を参照し、医師が入力した所見を59の臨床ルールで統合します</p></div><span className="badge">Version 2</span></header>
       <NavigatorCard className="navigator-card--mobile" state={navigatorState} comment={navigatorComment}/>
       <section className="card version2-intro" aria-labelledby="version2-intro-title">
         <div className="version2-intro__heading"><div><div className="eyebrow">Version 2</div><h3 id="version2-intro-title">このアプリでできること</h3></div><span className="badge">ルールベース診断支援</span></div>
-        <p>心電図の主要な所見を入力すると、登録された57の臨床ルールに基づいて所見を統合し、緊急度、Red Flag、診断候補、その理由、見逃してはいけない鑑別、追加で確認すべき情報、追加検査、初期対応を整理して表示します。</p>
+        <p>心電図の主要な所見を入力すると、登録された59の臨床ルールに基づいて所見を統合し、緊急度、Red Flag、診断候補、その理由、見逃してはいけない鑑別、追加で確認すべき情報、追加検査、初期対応を整理して表示します。</p>
         <p>すべての項目を入力する必要はありません。入力された情報から解析し、不足している情報は追加確認として提示します。</p>
         <div className="version2-intro__notice"><strong>Version 2では心電図画像そのものの自動読影は行いません。</strong><span>画像は任意の参照用で、登録しても解析結果には影響しません。</span></div>
         <ol className="version2-intro__steps" aria-label="利用手順">
@@ -258,7 +258,7 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
         <p className="version2-intro__disclaimer">本アプリは診断支援ツールです。最終的な診断・治療判断は、患者背景、症状、バイタル、採血、前回心電図などを含めて担当医が行ってください。</p>
       </section>
 
-      <details className="reference-image" id="reference-image"><summary><span>参考画像を表示（任意）</span><small>Version 2では画像から所見を自動抽出しません</small></summary><section className="card workflow-card" id="quick-upload"><div className="cardhead"><div><div className="eyebrow">Optional reference</div><h3>心電図画像を参照表示</h3><p className="muted">画像は参照用です。登録しても57ルールの解析結果には影響しません。</p></div><span className="badge">画像は永続保存しません</span></div>
+      <details className="reference-image" id="reference-image"><summary><span>参考画像を表示（任意）</span><small>Version 2では画像から所見を自動抽出しません</small></summary><section className="card workflow-card" id="quick-upload"><div className="cardhead"><div><div className="eyebrow">Optional reference</div><h3>心電図画像を参照表示</h3><p className="muted">画像は参照用です。登録しても59ルールの解析結果には影響しません。</p></div><span className="badge">画像は永続保存しません</span></div>
         {enableFutureLocalExtraction&&<div className="local-analysis-status" role="status"><strong>{localSupport==null?"ローカル実行環境を確認中":localSupport.backend==="webgpu"?"ローカルGPU解析に対応":localSupport.backend==="wasm"?"CPU解析で動作可能":"この端末ではローカル所見抽出に非対応"}</strong><span>{localSupport?.supported?"検証済みモデルを利用できます":localSupport?.reason??"所見抽出モデルは準備中です"}</span></div>}
         <div className={`upload-dropzone ${isDragging?"is-dragging":""}`} onDragEnter={e=>{e.preventDefault();if(!isBusy)setIsDragging(true)}} onDragOver={e=>e.preventDefault()} onDragLeave={e=>{if(e.currentTarget===e.target)setIsDragging(false)}} onDrop={e=>{e.preventDefault();setIsDragging(false);handleSelectedFile(e.dataTransfer.files[0]??null)}}>
           <strong>JPEG / PNG / WebP</strong><p className="muted">20MB以下の画像を選択、またはここへドロップしてください。</p>
