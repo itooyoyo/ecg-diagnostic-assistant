@@ -1,0 +1,17 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {createDefaultIntegratedInput} from "../data/integration/defaults.js";
+import {buildIntegratedInterpretation} from "../logic/integration/build-integrated-interpretation.js";
+import {ecgRuleRegistry} from "../data/rule-engine/rule-registry.js";
+const run=(clinical={},ecg={})=>{const x=createDefaultIntegratedInput();Object.assign(x.clinical,clinical);Object.assign(x.ecg,ecg);return buildIntegratedInterpretation(x)};
+const ids=result=>result.diagnosticCandidates.map(x=>x.id);
+test("approved ST differential rules are stable and unique",()=>{assert.equal(ecgRuleRegistry.length,59);assert.ok(ecgRuleRegistry.some(x=>x.id==="ECG-ST-008"));assert.ok(ecgRuleRegistry.some(x=>x.id==="ECG-ST-009"));assert.equal(new Set(ecgRuleRegistry.map(x=>x.id)).size,59)});
+test("delta plus short PR creates preexcitation candidate",()=>assert.ok(ids(run({}, {deltaWave:true,shortPr:true})).includes("preexcitation-pattern")));
+test("delta alone does not establish WPW",()=>assert.ok(!ids(run({}, {deltaWave:true,shortPr:false})).includes("preexcitation-pattern")));
+test("poor R progression does not establish infarction",()=>{const r=run({}, {poorRWaveProgression:true});assert.ok(ids(r).includes("r-wave-progression"));assert.ok(!ids(r).includes("acute-coronary-occlusion"))});
+test("digitalis plus ST depression retains drug differential",()=>assert.ok(ids(run({digitalisUse:true},{anyStDepression:true})).includes("digitalis-effect")));
+test("digitalis alone does not establish ischemia",()=>assert.deepEqual(ids(run({digitalisUse:true},{anyStDepression:false})),[]));
+test("tachycardia plus ST depression retains rate differential",()=>assert.ok(ids(run({heartRate:130},{anyStDepression:true})).includes("rate-related-st-change")));
+test("rate explanation does not suppress ischemia",()=>{const r=run({heartRate:140,ischemicChestPain:true},{anyStDepression:true,contiguousStElevation:true});assert.ok(ids(r).includes("rate-related-st-change"));assert.ok(ids(r).includes("acute-coronary-occlusion"))});
+test("digitalis tachycardia and ST depression retain competing explanations",()=>{const r=run({heartRate:140,digitalisUse:true,ischemicChestPain:true},{anyStDepression:true,diffuseStDepression:true,avrElevation:true});for(const id of ["digitalis-effect","rate-related-st-change","diffuse-subendocardial-ischemia"])assert.ok(ids(r).includes(id))});
+test("unknown findings are not made positive",()=>assert.deepEqual(ids(run({heartRate:null,digitalisUse:null},{anyStDepression:false,deltaWave:false,shortPr:false,poorRWaveProgression:false})),[]));

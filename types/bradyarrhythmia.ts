@@ -7,7 +7,7 @@ export type BradyInput={
   ventricularRateBpm:number|null;atrialRateBpm:number|null;rateRegularity:"regular"|"regularly_irregular"|"irregular"|"indeterminate";
   pWavePresence:"present"|"absent"|"intermittent"|"hidden"|"indeterminate";sinusMorphology:"sinus"|"non_sinus"|"uncertain";hiddenInQrs:Ternary;hiddenInTWave:Ternary;
   pToQrsRelationship:"one_to_one"|"two_to_one"|"three_to_one"|"variable_conduction"|"av_dissociation"|"indeterminate";
-  prIntervalsMs:number[];prPattern:"normal"|"prolonged_constant"|"progressive_prolongation"|"constant_before_dropped_qrs"|"variable"|"not_measurable"|"indeterminate";
+  prIntervalsMs:number[];prPattern:"normal"|"short"|"prolonged_constant"|"progressive_prolongation"|"constant_before_dropped_qrs"|"variable"|"not_measurable"|"indeterminate";
   droppedQrs:Ternary;multipleNonconductedP:Ternary;ppRegular:Ternary;qrsWidthMs:number|null;escapeRhythm:"none"|"atrial_escape"|"junctional_escape"|"ventricular_escape"|"paced_rhythm"|"indeterminate";
   pausePresent:Ternary;pauseDurationMs:number|null;expectedPWaveMissing:Ternary;pauseMultipleOfBaselinePp:"yes"|"no"|"uncertain";symptomsDuringPause:Ternary;
   adverseSigns:{alteredMentalStatus:Ternary;syncope:Ternary;presyncope:Ternary;hypotension:Ternary;shockSigns:Ternary;ischemicChestDiscomfort:Ternary;acuteHeartFailure:Ternary;hypoxemia:Ternary;poorPerfusion:Ternary};

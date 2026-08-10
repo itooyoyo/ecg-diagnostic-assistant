@@ -5,8 +5,8 @@ import {createDefaultIntegratedInput} from "../data/integration/defaults.js";
 import {buildIntegratedInterpretation} from "../logic/integration/build-integrated-interpretation.js";
 
 const integrated=(patch={})=>{const x=createDefaultIntegratedInput();for(const [group,values] of Object.entries(patch))Object.assign(x[group],values);return buildIntegratedInterpretation(x)};
-test("all 57 existing rules are adapted",()=>assert.equal(ecgRuleRegistry.length,57));
-test("all 57 Rule IDs are unique and stable",()=>{const ids=ecgRuleRegistry.map(x=>x.id);assert.equal(new Set(ids).size,57);for(const id of ids)assert.match(id,/^ECG-[A-Z]+-\d{3}$/)});
+test("all 59 approved rules are adapted",()=>assert.equal(ecgRuleRegistry.length,59));
+test("all 59 Rule IDs are unique and stable",()=>{const ids=ecgRuleRegistry.map(x=>x.id);assert.equal(new Set(ids).size,59);for(const id of ids)assert.match(id,/^ECG-[A-Z]+-\d{3}$/)});
 test("all rules expose required common metadata and evaluate",()=>{for(const rule of ecgRuleRegistry){assert.ok(rule.category);assert.ok(rule.requiredInputs.length);assert.equal(typeof rule.priority,"number");assert.ok(rule.severity);assert.ok(rule.sourceClassification);assert.equal(typeof rule.evaluate,"function");assert.ok(rule.descriptionJa);assert.ok(rule.implementationFiles.length)}});
 test("unprovided existing rule input is insufficient rather than normal",()=>{const result=evaluateRule("ECG-ST-001",{inputs:{},results:{}});assert.equal(result.status,"insufficient_data");assert.ok(result.missingInputs.length);assert.match(result.explanationJa,/不足/)});
 test("existing snapshots pass through the common adapter unchanged",()=>{const snapshot={status:"matched",matchedConditions:["既存条件"],missingInputs:[],conflictingInputs:[],explanationJa:"既存結果"};assert.deepEqual(evaluateRule("ECG-ST-001",{inputs:{},results:{},evaluations:{"ECG-ST-001":snapshot}}),{...snapshot,competingRuleIds:[]})});

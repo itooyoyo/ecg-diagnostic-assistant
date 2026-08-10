@@ -75,4 +75,4 @@ test("simplified ST UI contains six explicit states and conditionally rendered l
   assert.doesNotMatch(source,/ST elevation mm|ST depression mm|J point mm/);
 });
 
-test("all 57 rules remain registered",()=>assert.equal(ecgRuleRegistry.length,57));
+test("all 59 approved rules remain registered",()=>assert.equal(ecgRuleRegistry.length,59));

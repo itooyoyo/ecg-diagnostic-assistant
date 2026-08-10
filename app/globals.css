@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+.finding-guidance-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin-top:1rem}.finding-guidance-grid label{min-width:0}.finding-guidance-grid select{width:100%;max-width:100%}.finding-education{margin:1rem 0;border:1px solid var(--line);border-radius:12px;padding:.7rem}.finding-education summary{cursor:pointer;font-weight:700}.education-diagram-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}.education-diagram-grid figure{margin:0;min-width:0}.education-diagram-grid figcaption{font-size:.86rem;font-weight:700}.finding-education svg{display:block;width:100%;height:auto;max-height:120px;margin-top:.35rem}.clinical-warning{margin:.75rem 0;padding:.8rem;border:1px solid #d79b35;border-radius:10px;background:rgba(215,155,53,.1)}
+@media(max-width:430px){.finding-guidance-grid,.education-diagram-grid{grid-template-columns:1fr}.finding-education svg{min-width:0}.finding-education{overflow-wrap:anywhere}}
+
 :root { --bg:#050b18; --panel:rgba(13,27,51,.82); --line:#263d60; --cyan:#57e6ff; --blue:#408cff; --muted:#91a4bd; }
 * { box-sizing:border-box; }
 html { background:var(--bg); overflow-x:hidden; }

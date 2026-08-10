@@ -68,3 +68,10 @@ export const ecgRuleRegistry=raw.trim().split("\n").map(line=>{const [id,categor
 export const ecgRuleById=new Map(ecgRuleRegistry.map(rule=>[rule.id,rule]));
 export function evaluateRule(id,context){const rule=ecgRuleById.get(id);if(!rule)throw new Error(`Unknown ECG rule: ${id}`);return rule.evaluate(context)}
 
+for(const [id,titleJa,requiredInputs] of [
+  ["ECG-ST-008","Digitalis effectによるST-T変化",["digitalis使用","ST低下","心拍数","QRS背景","虚血関連症状"]],
+  ["ECG-ST-009","頻脈に伴う二次性ST変化",["明示的な頻脈","心拍数","ST低下","ST低下誘導","虚血症状"]],
+]){
+  const rule={id,version:"2.0.0",category:"st",titleJa,descriptionJa:titleJa,requiredInputs,optionalInputs:[],priority:60,severity:"attention",outputs:{},sourceClassification:"approved_new_rule",sourceRefs:[],limitations:["心筋虚血候補を抑制しません。"],implementationFiles:["logic/integration/build-integrated-interpretation.js"],testIds:[],evaluate:context=>defaultEvaluation({id,titleJa,requiredInputs},context)};
+  ecgRuleRegistry.push(rule);ecgRuleById.set(id,rule);
+}

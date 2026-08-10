@@ -53,4 +53,4 @@ test("result UI replaces the old empty-candidate sentence with structured sectio
   assert.match(source,/reviewedFields/);
 });
 
-test("all 57 medical rules remain unchanged",()=>assert.equal(ecgRuleRegistry.length,57));
+test("all 59 approved medical rules remain registered",()=>assert.equal(ecgRuleRegistry.length,59));

@@ -58,6 +58,6 @@ test("image optional workflow exposes seven-section input before collapsed refer
   assert.equal((review.match(/<ReviewSection code=/g)??[]).length,7);
 });
 
-test("all 57 rules remain registered for image-free evaluation",()=>{
-  assert.equal(ecgRuleRegistry.length,57);
+test("all 59 approved rules remain registered for image-free evaluation",()=>{
+  assert.equal(ecgRuleRegistry.length,59);
 });
