@@ -10,3 +10,8 @@ export function createDefaultStInput(){
     clinical:{age:null,sex:null,ischemicSymptoms:null,symptomOnset:"",hemodynamicInstability:false,hypotension:false,jugularVenousDistension:false,pulmonaryCongestionAbsent:false,troponinDynamicChange:null,posteriorOcclusionSuspected:false,highRWaveV1toV3:false,earlyRepolarizationSuspected:false,heartRate:null},
   };
 }
+
+export function createClinicalReviewStInput(){
+  const input=createDefaultStInput();
+  return {...input,clinicalReviewStatus:"unentered",leadMeasurements:standardLeads.map(createEmptyStMeasurement),reciprocalFinding:{status:"indeterminate",leads:[],amplitudeMm:null,dynamicChange:null},dynamicChange:null};
+}

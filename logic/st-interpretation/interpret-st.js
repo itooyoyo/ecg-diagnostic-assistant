@@ -29,7 +29,8 @@ export function assessLeadMeasurement(measurement,clinical){
 
 export function interpretStChanges(input){
   const measurements=input.leadMeasurements.map(normalizeMeasurement);
-  const leadResults=measurements.map((measurement)=>assessLeadMeasurement(measurement,input.clinical));
+  const qualitativeReview=["elevation","depression","mixed"].includes(input.clinicalReviewStatus);
+  const leadResults=measurements.map((measurement)=>input.clinicalReviewStatus==="none"&&measurement.clinicianConfirmed?{lead:measurement.lead,significant:false,reason:"通常画面で明らかなST変化なしとして医師確認済みです"}:qualitativeReview&&measurement.clinicianConfirmed&&(measurement.direction==="elevation"||measurement.direction==="depression")?{lead:measurement.lead,significant:true,reason:"通常画面で明らかなST変化として医師確認済みです"}:assessLeadMeasurement(measurement,input.clinical));
   const significant=(direction)=>measurements.filter((measurement,index)=>measurement.direction===direction&&leadResults[index].significant===true).map((measurement)=>measurement.lead);
   const elevated=significant("elevation");
   const depressed=significant("depression");
@@ -49,12 +50,14 @@ export function interpretStChanges(input){
   const dynamic=input.dynamicChange===true||input.priorComparison==="new"||input.priorComparison==="worsened"||input.priorComparison==="transient";
   const missingPreconditions=collectMissingPreconditions(input.preconditions);
   const qrsSecondary=abnormalQrsContexts.has(input.qrsContext);
-  let overallClassification="no_significant_change";
-  if(missingPreconditions.length||leadResults.some((result)=>result.significant===null))overallClassification="indeterminate";
+  let overallClassification=input.clinicalReviewStatus==="none"?"no_significant_change":"indeterminate";
+  if(input.clinicalReviewStatus==="unentered"||input.clinicalReviewStatus==="indeterminate")overallClassification="indeterminate";
+  else if(missingPreconditions.length||leadResults.some((result)=>result.significant===null&&!qualitativeReview))overallClassification="indeterminate";
   else if(qrsSecondary&&(elevated.length||depressed.length))overallClassification="secondary_repolarization_change";
   else if(elevated.length&&depressed.length)overallClassification="mixed";
   else if(elevated.length)overallClassification="st_elevation";
   else if(depressed.length)overallClassification="st_depression";
+  else if(input.clinicalReviewStatus==null)overallClassification="no_significant_change";
 
   const redFlags=[];
   const ischemicSymptoms=input.clinical.ischemicSymptoms===true;

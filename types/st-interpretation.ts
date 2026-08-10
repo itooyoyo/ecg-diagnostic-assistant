@@ -55,6 +55,7 @@ export type StPreconditions = {
 };
 
 export type StInterpretationInput = {
+  clinicalReviewStatus?: "unentered"|"elevation"|"depression"|"mixed"|"none"|"indeterminate";
   leadMeasurements: StMeasurement[];
   reciprocalFinding: ReciprocalFinding;
   dynamicChange: boolean|null;

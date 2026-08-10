@@ -49,7 +49,8 @@ test("bradycardia wide QRS ST and placement details are conditionally disclosed"
   const source=await readFile(new URL("../components/ecg/SimplifiedClinicalReview.tsx",import.meta.url),"utf8");
   assert.match(source,/n\(heartRate\).*<50/);
   assert.match(source,/\["wide","rbbb","lbbb"\]\.includes\(qrsChoice\)/);
-  assert.match(source,/stDirection==="elevation"\|\|stDirection==="depression"/);
+  assert.match(source,/stChoice==="elevation"\|\|stChoice==="mixed"/);
+  assert.match(source,/stChoice==="depression"\|\|stChoice==="mixed"/);
   assert.match(source,/placementWarning&&<details open>/);
 });
 
