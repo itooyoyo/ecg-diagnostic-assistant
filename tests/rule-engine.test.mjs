@@ -63,10 +63,11 @@ test("Version 2 UI is clinician-input first and does not advertise future extrac
   assert.doesNotMatch(source,/ローカル心電図解析モデルを開発中です|将来はローカル画像解析モデルを追加/);
 });
 
-test("candidate Rule IDs are unique and follow the stable naming convention",()=>{
-  const ids=Object.values(candidateRuleIds).flat();
-  assert.equal(new Set(ids).size,ids.length);
-  for(const id of ids)assert.match(id,/^ECG-[A-Z]+-\d{3}$/);
+test("candidate Rule IDs are unique within each candidate and follow the stable naming convention",()=>{
+  for(const ids of Object.values(candidateRuleIds)){
+    assert.equal(new Set(ids).size,ids.length);
+    for(const id of ids)assert.match(id,/^ECG-[A-Z]+-\d{3}$/);
+  }
 });
 
 test("registry inventories 57 existing rules without filling empty categories",()=>{

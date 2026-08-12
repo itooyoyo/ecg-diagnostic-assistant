@@ -1,0 +1,5 @@
+export function adaptTachyResultToIntegratedEcg(result){
+  if(!result?.active)return {wideTachycardia:null,irregularTachycardia:null,polymorphicWideTachycardia:null,avDissociationTachy:null,captureBeat:null,fusionBeat:null,existingBbb:null,preexcitation:null,variableQrs:null,vt:null,tdp:null};
+  const findings=result.findings??{};
+  return {wideTachycardia:result.qrsClass==="wide"||result.qrsClass==="variable",irregularTachycardia:result.classification==="wide irregular"||(result.qrsClass==="variable"&&findings.regularity==="irregular"),polymorphicWideTachycardia:findings.polymorphicWide??null,avDissociationTachy:findings.avDissociation??null,captureBeat:findings.captureBeat??null,fusionBeat:findings.fusionBeat??null,existingBbb:findings.existingBundleBranchBlock??null,preexcitation:result.preexcitedAf===true||findings.preExcitation===true,variableQrs:findings.qrsMorphologyVariable??null,vt:result.overallClassification==="ventricular_tachycardia_candidate",tdp:findings.torsadesCandidate===true};
+}

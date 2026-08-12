@@ -2,6 +2,8 @@
 export const candidateRuleIds={
   "atrial-fibrillation-pattern":["ECG-PWAVE-002","ECG-TACHY-003"],
   "lbbb-pattern":["ECG-QRS-002","ECG-BBB-001"],
+  "rbbb-pattern":["ECG-QRS-001","ECG-BBB-001"],
+  "ivcd-pattern":["ECG-QRS-003"],
   "lbbb-paced-occlusion":["ECG-ST-006"],
   "lbbb-paced-occlusion-limited":["ECG-ST-007"],
   "technical-limitation":["ECG-QUALITY-001"],

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { classifyTachyarrhythmia, type AvRelationship, type PWaveState, type Regularity, type TachyInput, type TachyResult } from "@/logic/tachyarrhythmia/classify.js";
+import { AdvancedWideTachycardiaReview, type ExistingBbbState, type ReviewState, type WctAuditState } from "@/components/ecg/AdvancedWideTachycardiaReview";
 
 type TachyarrhythmiaModuleProps = {
   heartRate:number|null;
@@ -35,7 +36,10 @@ export function TachyarrhythmiaModule({heartRate,qrsMs,regularity,onRedFlagChang
   const [fibrillatoryWaves,setFibrillatoryWaves]=useState(false);
   const [flutterWaves,setFlutterWaves]=useState(false);
   const [flutterConduction,setFlutterConduction]=useState<TachyInput["flutterConduction"]>("unknown");
-  const [advanced,setAdvanced]=useState({atrialRateBpm:null as number|null,rpIntervalMs:null as number|null,prIntervalMs:null as number|null,shortRp:false,longRp:false,abruptOnset:false,abruptTermination:false,avDissociation:false,captureBeats:false,fusionBeats:false,polymorphicWide:false,existingBundleBranchBlock:false,highPotassium:false,dynamicStChange:false,hyperacuteT:false,artifactConcern:false,frequentPac:false,multiplePWaveMorphologies:false});
+  const [advanced,setAdvanced]=useState({atrialRateBpm:null as number|null,rpIntervalMs:null as number|null,prIntervalMs:null as number|null,shortRp:false,longRp:false,abruptOnset:false,abruptTermination:false,avDissociation:null as ReviewState,captureBeats:null as ReviewState,fusionBeats:null as ReviewState,polymorphicWide:null as ReviewState,existingBundleBranchBlock:null as ReviewState,highPotassium:false,dynamicStChange:false,hyperacuteT:false,artifactConcern:false,frequentPac:false,multiplePWaveMorphologies:false});
+  const [preExcitation,setPreExcitation]=useState<ReviewState>(null);
+  const [existingBbb,setExistingBbb]=useState<ExistingBbbState>("unknown");
+  const [wctAudit,setWctAudit]=useState<WctAuditState>({rsAbsentV1V6:"unknown",maxRsIntervalMs:null,rsIntervalStatus:"unentered",bbbLikeMorphology:"unknown",concordance:"unknown"});
   const [clinicianClassification,setClinicianClassification]=useState<TachyInput["clinicianClassification"]>("auto");
   const [wpwHistory,setWpwHistory]=useState(false);
   const [qrsMorphologyVariable,setQrsMorphologyVariable]=useState(false);
@@ -48,7 +52,7 @@ export function TachyarrhythmiaModule({heartRate,qrsMs,regularity,onRedFlagChang
   const [magnesium,setMagnesium]=useState<number|null>(null);
   const [clinical,setClinical]=useState({pulse:null as number|null,spo2:null as number|null,dyspnea:false,previousEcg:false,medications:false});
 
-  const input:TachyInput={heartRate,qrsMs,regularity,pWave,pulsePresent,systolicBp,...flags,...advanced,avRelationship:pQrs,deltaWave,shortPr,fibrillatoryWaves,flutterWaves,flutterConduction,wpwHistory,qrsMorphologyVariable,priorMi,structuralHeartDisease,sinusFeatures,qtcMs,potassium,calcium,magnesium,clinicianClassification};
+  const input:TachyInput={heartRate,qrsMs,regularity,pWave,pulsePresent,systolicBp,...flags,...advanced,avDissociation:ruleState(advanced.avDissociation),captureBeats:ruleState(advanced.captureBeats),fusionBeats:ruleState(advanced.fusionBeats),polymorphicWide:ruleState(advanced.polymorphicWide),existingBundleBranchBlock:ruleState(advanced.existingBundleBranchBlock),avRelationship:pQrs,deltaWave,shortPr,preExcitation:ruleState(preExcitation),fibrillatoryWaves,flutterWaves,flutterConduction,wpwHistory,qrsMorphologyVariable,priorMi,structuralHeartDisease,sinusFeatures,qtcMs,potassium,calcium,magnesium,clinicianClassification};
   const result=classifyTachyarrhythmia(input);
   const hasRedFlag=result.redFlags.length>0||result.hemodynamics.status==="cardiac-arrest";
   const resultSignature=JSON.stringify(result);
@@ -110,7 +114,30 @@ export function TachyarrhythmiaModule({heartRate,qrsMs,regularity,onRedFlagChang
         <label className="check"><input type="checkbox" checked={sinusFeatures} onChange={e=>setSinusFeatures(e.target.checked)}/>徐々に発症・停止／心拍変動・誘因あり</label>
       </div>
     </details>
-    <details className="tachy-inputs"><summary>AV解離・発症様式・Wide頻拍を医師確認</summary><div className="tachy-form-grid"><label>心房拍数<input type="number" value={advanced.atrialRateBpm??""} onChange={e=>setAdvanced(v=>({...v,atrialRateBpm:numberOrNull(e.target.value)}))}/></label><label>RP間隔<input type="number" value={advanced.rpIntervalMs??""} onChange={e=>setAdvanced(v=>({...v,rpIntervalMs:numberOrNull(e.target.value)}))}/></label><label>PR間隔<input type="number" value={advanced.prIntervalMs??""} onChange={e=>setAdvanced(v=>({...v,prIntervalMs:numberOrNull(e.target.value)}))}/></label><label>医師最終候補<select value={clinicianClassification} onChange={e=>setClinicianClassification(e.target.value as TachyInput["clinicianClassification"])}>{["auto","sinus_tachycardia_candidate","atrial_tachycardia_candidate","atrial_flutter_candidate","atrial_fibrillation_candidate","avnrt_candidate","avrt_candidate","junctional_tachycardia_candidate","ventricular_tachycardia_candidate","preexcited_atrial_fibrillation_candidate","other_wide_complex_tachycardia","mixed","indeterminate"].map(x=><option key={x} value={x}>{x}</option>)}</select></label></div><div className="checks tachy-checks">{[["shortRp","short RP"],["longRp","long RP"],["abruptOnset","突然発症"],["abruptTermination","突然停止"],["avDissociation","AV解離"],["captureBeats","capture beat"],["fusionBeats","fusion beat"],["polymorphicWide","多形性Wide"],["existingBundleBranchBlock","既存脚ブロック"],["highPotassium","高K所見"],["dynamicStChange","動的ST変化"],["hyperacuteT","hyperacute T"],["frequentPac","頻発PAC"],["multiplePWaveMorphologies","複数P波形"],["artifactConcern","アーチファクト"]].map(([k,l])=><label className="check" key={k}><input type="checkbox" checked={Boolean(advanced[k as keyof typeof advanced])} onChange={e=>setAdvanced(v=>({...v,[k]:e.target.checked}))}/>{l}</label>)}</div></details>
+    <details className="tachy-inputs"><summary>発症様式・頻拍機序を医師確認</summary><div className="tachy-form-grid"><label>心房拍数<input type="number" value={advanced.atrialRateBpm??""} onChange={e=>setAdvanced(v=>({...v,atrialRateBpm:numberOrNull(e.target.value)}))}/></label><label>RP間隔<input type="number" value={advanced.rpIntervalMs??""} onChange={e=>setAdvanced(v=>({...v,rpIntervalMs:numberOrNull(e.target.value)}))}/></label><label>PR間隔<input type="number" value={advanced.prIntervalMs??""} onChange={e=>setAdvanced(v=>({...v,prIntervalMs:numberOrNull(e.target.value)}))}/></label><label>医師最終候補<select value={clinicianClassification} onChange={e=>setClinicianClassification(e.target.value as TachyInput["clinicianClassification"])}>{["auto","sinus_tachycardia_candidate","atrial_tachycardia_candidate","atrial_flutter_candidate","atrial_fibrillation_candidate","avnrt_candidate","avrt_candidate","junctional_tachycardia_candidate","ventricular_tachycardia_candidate","preexcited_atrial_fibrillation_candidate","other_wide_complex_tachycardia","mixed","indeterminate"].map(x=><option key={x} value={x}>{x}</option>)}</select></label></div><div className="checks tachy-checks">{[["shortRp","short RP"],["longRp","long RP"],["abruptOnset","突然発症"],["abruptTermination","突然停止"],["highPotassium","高K所見"],["dynamicStChange","動的ST変化"],["hyperacuteT","hyperacute T"],["frequentPac","頻発PAC"],["multiplePWaveMorphologies","複数P波形"],["artifactConcern","アーチファクト"]].map(([k,l])=><label className="check" key={k}><input type="checkbox" checked={Boolean(advanced[k as keyof typeof advanced])} onChange={e=>setAdvanced(v=>({...v,[k]:e.target.checked}))}/>{l}</label>)}</div></details>
+    {result.qrsClass === "wide" && (
+      <AdvancedWideTachycardiaReview
+        regularity={regularity}
+        avDissociation={advanced.avDissociation}
+        captureBeat={advanced.captureBeats}
+        fusionBeat={advanced.fusionBeats}
+        polymorphicWide={advanced.polymorphicWide}
+        preExcitation={preExcitation}
+        existingBbb={existingBbb}
+        audit={wctAudit}
+        onFindingChange={(key, value) => setAdvanced((valueBefore) => ({ ...valueBefore, [key]: value }))}
+        onPreExcitationChange={setPreExcitation}
+        onExistingBbbChange={(value) => {
+          setExistingBbb(value);
+          setAdvanced((valueBefore) => ({
+            ...valueBefore,
+            existingBundleBranchBlock:
+              value === "rbbb" || value === "lbbb" ? true : value === "none" ? false : null,
+          }));
+        }}
+        onAuditChange={setWctAudit}
+      />
+    )}
 
     <div className="tachy-results">
       <div><div className="eyebrow">最優先候補</div><h4>{result.priority}</h4><ul className="list">{result.candidates.map(x=><li key={x}>{x}</li>)}</ul></div>
@@ -126,3 +153,4 @@ export function TachyarrhythmiaModule({heartRate,qrsMs,regularity,onRedFlagChang
 }
 
 function numberOrNull(value:string){const n=Number(value);return value===""||!Number.isFinite(n)?null:n}
+function ruleState(value:ReviewState):boolean|null{return typeof value==="boolean"?value:null}

@@ -212,10 +212,25 @@ summary { cursor:pointer;font-weight:700;color:#dbeeff; }
 .tachy-quadrant.active { opacity:1;border-color:var(--cyan);box-shadow:inset 3px 0 var(--cyan); }
 .tachy-quadrant--wide.active { border-color:#f1bf5b;box-shadow:inset 3px 0 #f1bf5b; }
 .tachy-inputs { margin-top:9px; }
+.wct-review{border-color:rgba(241,191,91,.45)}
+.wct-safety{margin:12px 0;padding:12px;border:1px solid rgba(241,191,91,.5);border-left:4px solid #f1bf5b;border-radius:10px;background:rgba(79,55,17,.25)}
+.wct-safety p{margin:.4rem 0 0;color:#d7e1ec}
+.wct-layer{margin-top:12px;padding:13px;border:1px solid var(--line);border-radius:11px;background:rgba(4,13,28,.5)}
+.wct-layer h4{margin:0 0 8px}
+.wct-education{margin-top:10px}.wct-education summary{cursor:pointer;font-weight:700}
+.wct-education-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:9px}
+.wct-education-grid figure{min-width:0;margin:0;padding:10px;border:1px solid var(--line);border-radius:9px;background:#071327}
+.wct-education-grid figcaption{font-weight:700;color:var(--cyan)}
+.wct-education-grid svg{display:block;width:100%;height:auto;margin:.5rem 0;color:#dcecff}
+.wct-education-grid p{margin:0;color:var(--muted);font-size:.78rem;line-height:1.55}
+.wct-wave,.wct-atrial{fill:none;stroke:currentColor;stroke-width:3}.wct-atrial{stroke:#57e6ff;stroke-width:2}
+.wct-baseline{fill:none;stroke:#52708d;stroke-width:1;stroke-dasharray:4 4}.wct-measure{fill:none;stroke:#f1bf5b;stroke-width:2}
+.wct-audit-status{margin:.75rem 0 0;color:#f1bf5b;font-weight:700}
 .tachy-form-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px; }
 .tachy-form-grid label { color:var(--muted);font-size:10px; }
 .tachy-form-grid input,.tachy-form-grid select { display:block;width:100%;min-height:38px;margin-top:4px;padding:7px;border:1px solid var(--line);border-radius:7px;background:#061126;color:white; }
 .tachy-checks { margin-top:9px; }
+@media(max-width:720px){.wct-education-grid{grid-template-columns:1fr}.wct-layer{padding:10px}.wct-review .tachy-form-grid{grid-template-columns:1fr}}
 .tachy-results { display:grid;grid-template-columns:1.4fr .6fr;gap:10px;margin-top:13px; }
 .tachy-results>div { padding:13px;border:1px solid var(--line);border-radius:10px;background:rgba(4,13,28,.5); }
 .tachy-results h4 { margin:6px 0;color:white; }

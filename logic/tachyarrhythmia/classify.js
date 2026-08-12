@@ -47,7 +47,8 @@ export function classifyTachyarrhythmia(input) {
   const isTachycardia = input.heartRate != null && input.heartRate >= TACHYCARDIA_THRESHOLD_BPM;
   const qrsClass = input.qrsCategoryOverride&&input.qrsCategoryOverride!=="auto"?input.qrsCategoryOverride:input.qrsMorphologyVariable?"variable":input.qrsMs == null ? "indeterminate" : input.qrsMs < WIDE_QRS_THRESHOLD_MS ? "narrow" : "wide";
   const diagnosticReasoning = [`① QRS幅：${qrsClass === "indeterminate" ? "判定不能" : qrsClass === "narrow" ? "Narrow" : "Wide"}`, `② 規則性：${input.regularity === "unknown" ? "判定不能" : input.regularity === "regular" ? "規則" : "不規則"}`, `③ P波：${input.pWave}`, `④ 房室解離：${input.avRelationship === "av-dissociation" ? "あり" : input.avRelationship === "unknown" ? "判定不能" : "明確でない"}`];
-  const baseResult = { qrsClass, diagnosticReasoning, contraindicatedDrugCandidates:[], clinicalPearls:[],overallClassification:"indeterminate",possibleCauses:[],limitations:["単一所見で頻拍機序を確定しません。","薬剤用量、ショックエネルギー、抗凝固・アブレーション・ICD適応を自動決定しません。"] };
+  const findings={regularity:input.regularity,avDissociation:input.avDissociation??null,captureBeat:input.captureBeats??null,fusionBeat:input.fusionBeats??null,existingBundleBranchBlock:input.existingBundleBranchBlock??null,polymorphicWide:input.polymorphicWide??null,qrsMorphologyVariable:input.qrsMorphologyVariable??null,preExcitation:input.preExcitation??((input.deltaWave||input.shortPr||input.wpwHistory)?true:null),torsadesCandidate:false};
+  const baseResult = { qrsClass, diagnosticReasoning, contraindicatedDrugCandidates:[], clinicalPearls:[],overallClassification:"indeterminate",possibleCauses:[],findings,limitations:["単一所見で頻拍機序を確定しません。","薬剤用量、ショックエネルギー、抗凝固・アブレーション・ICD適応を自動決定しません。"] };
   if (!isTachycardia) return { ...baseResult, active:false, hemodynamics, classification:null, candidates:[], priority:null, redFlags:[], warnings:[], missing, plan:[] };
   if (hemodynamics.status === "cardiac-arrest") {
     return { ...baseResult, active:true, hemodynamics, classification:null, candidates:["心停止リズム"], priority:"心停止対応", redFlags:["無脈性"], warnings:[], missing, plan:["心停止アルゴリズムへ分岐", "蘇生チームを準備"] };
@@ -117,7 +118,7 @@ export function classifyTachyarrhythmia(input) {
     priority = "器質的心疾患を背景とする心室頻拍を強く疑う";
     warnings.push("心筋梗塞既往／構造的心疾患はVTを支持します。");
   }
-  const wpwEvidence = input.wpwHistory || input.deltaWave || input.shortPr;
+  const wpwEvidence = input.preExcitation === true || input.wpwHistory || input.deltaWave || input.shortPr;
   const preexcitedAf = classification === "wide irregular" && (wpwEvidence || input.qrsMorphologyVariable);
   if (preexcitedAf) {
     redFlags.push("WPW／副伝導路を介する心房細動疑い");
@@ -126,7 +127,7 @@ export function classifyTachyarrhythmia(input) {
     contraindicatedDrugCandidates.push("ベラパミル", "ジルチアゼム", "β遮断薬", "ジゴキシン", "アデノシン", "静注アミオダロン");
     clinicalPearls.push("WPW／副伝導路を伴う心房細動では、AV結節遮断薬単独により副伝導路伝導が優位になる可能性があります。");
   }
-  if(input.polymorphicWide&&qrsClass!=="narrow"){overallClassification="ventricular_tachycardia_candidate";priority=input.qtcMs!=null&&input.qtcMs>=500?"QT延長に伴うTdP候補":"多形性VT候補（虚血・電気疾患等を評価）";redFlags.push(priority);}
+  if(input.polymorphicWide&&qrsClass!=="narrow"){overallClassification="ventricular_tachycardia_candidate";findings.torsadesCandidate=input.qtcMs!=null&&input.qtcMs>=500;priority=findings.torsadesCandidate?"QT延長に伴うTdP候補":"多形性VT候補（虚血・電気疾患等を評価）";redFlags.push(priority);}
   if(input.highPotassium&&qrsClass!=="narrow")possibleCauses.push("高Kによる代謝性Wide QRS頻拍候補");if(input.dynamicStChange||input.hyperacuteT)possibleCauses.push("急性虚血またはrate-related ST-T変化");if(input.multiplePWaveMorphologies&&classification==="narrow irregular"&&!input.fibrillatoryWaves){overallClassification="atrial_tachycardia_candidate";priority="多源性心房頻拍候補";}if(input.frequentPac&&classification==="narrow irregular"&&!input.fibrillatoryWaves)warnings.push("頻発PACを心房細動と誤確定しません。");if(input.artifactConcern){overallClassification="indeterminate";priority="アーチファクト疑い／判定不能";}
   if(input.clinicianClassification&&input.clinicianClassification!=="auto")overallClassification=input.clinicianClassification;
   if (classification === "wide irregular" && input.qtcMs != null && input.qtcMs >= 500) {
@@ -142,5 +143,5 @@ export function classifyTachyarrhythmia(input) {
   if (classification?.startsWith("wide")) plan.push("循環器／救急専門医へ相談");
   plan.push("症状・血圧・意識・SpO₂を再評価", "K・Ca・Mgを確認", "12誘導心電図を再検", "心エコーと前回心電図を確認");
 
-  return { active:true, hemodynamics, classification, overallClassification, qrsClass, candidates, priority, redFlags:[...new Set(redFlags)], warnings, missing, preexcitedAf, plan:[...new Set(plan)], diagnosticReasoning, contraindicatedDrugCandidates, clinicalPearls,possibleCauses,limitations:baseResult.limitations };
+  return { active:true, hemodynamics, classification, overallClassification, qrsClass, candidates, priority, redFlags:[...new Set(redFlags)], warnings, missing, preexcitedAf, findings, plan:[...new Set(plan)], diagnosticReasoning, contraindicatedDrugCandidates, clinicalPearls,possibleCauses,limitations:baseResult.limitations };
 }
