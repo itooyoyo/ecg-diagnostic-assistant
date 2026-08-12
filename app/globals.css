@@ -229,6 +229,7 @@ summary { cursor:pointer;font-weight:700;color:#dbeeff; }
 .tachy-form-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px; }
 .tachy-form-grid label { color:var(--muted);font-size:10px; }
 .tachy-form-grid input,.tachy-form-grid select { display:block;width:100%;min-height:38px;margin-top:4px;padding:7px;border:1px solid var(--line);border-radius:7px;background:#061126;color:white; }
+.wct-review .tachy-form-grid small{display:block;margin-top:5px;font-size:.72rem;line-height:1.45;color:var(--muted)}
 .tachy-checks { margin-top:9px; }
 @media(max-width:720px){.wct-education-grid{grid-template-columns:1fr}.wct-layer{padding:10px}.wct-review .tachy-form-grid{grid-template-columns:1fr}}
 .tachy-results { display:grid;grid-template-columns:1.4fr .6fr;gap:10px;margin-top:13px; }
