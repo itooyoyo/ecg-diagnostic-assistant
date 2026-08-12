@@ -44,7 +44,8 @@ test("all twenty regression cases retain explainability coverage",()=>{
     const isNormal=item.expected.candidate===null;
     const hasRules=(item.expected.ruleIds?.length??0)>0;
     const hasExplicitMissing=(item.expected.missing?.length??0)>0;
-    assert.ok(isNormal||hasRules||hasExplicitMissing,`${item.id} must have rules, missing information, or an explicit normal result`);
+    const isExplicitClassifierOutput=item.expected.classificationOnly===true&&Boolean(item.expected.fixtureIdentifier);
+    assert.ok(isNormal||hasRules||hasExplicitMissing||isExplicitClassifierOutput,`${item.id} must have rules, missing information, an explicit classifier output, or an explicit normal result`);
   }
 });
 

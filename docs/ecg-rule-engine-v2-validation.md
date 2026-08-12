@@ -27,7 +27,7 @@
 |---|---|---|---|---|---|---|
 | V2-CASE-01 | 正常洞調律 | 完全一致 | routine、Red Flagなし | なし | なし | 完全対応 |
 | V2-CASE-02 | 洞性徐脈 | 完全一致 | sinus bradycardia candidate | ECG-BRADY-001 | なし | 完全対応 |
-| V2-CASE-03 | 洞性頻脈 | 完全一致 | sinus tachycardia candidate | ECG-TACHY-006 | なし | 完全対応 |
+| V2-CASE-03 | 洞性頻脈 | 完全一致 | sinus tachycardia candidate | なし（fixture: CASE-TACHY-SINUS-006） | なし | 完全対応 |
 | V2-CASE-04 | 心房細動 | 完全一致 | atrial fibrillation candidate | ECG-PWAVE-002、ECG-TACHY-003 | なし | 完全対応 |
 | V2-CASE-05 | 心房粗動 | 完全一致 | atrial flutter candidate | ECG-PWAVE-003、ECG-TACHY-004 | なし | 完全対応 |
 | V2-CASE-06 | AVNRT相当 | 完全一致 | AVNRT candidate | ECG-TACHY-001 | なし | 完全対応 |
@@ -82,4 +82,3 @@
 - 電極逆接続時の虚血候補保持方針は医学的確認後に決定
 - ルール台帳Adapterを全57件へ拡張
 - ブラウザ上で20 fixtureを投入する開発専用ハーネスは未実装
-

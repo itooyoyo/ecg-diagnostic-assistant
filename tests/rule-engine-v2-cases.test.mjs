@@ -11,6 +11,7 @@ import {createDefaultConductionInput} from "../data/conduction-interpretation/de
 import {interpretConduction} from "../logic/conduction-interpretation/interpret-conduction.js";
 import {createDefaultVentricularEctopyInput} from "../data/ventricular-ectopy/defaults.js";
 import {interpretVentricularEctopy} from "../logic/ventricular-ectopy/interpret-ventricular-ectopy.js";
+import {ecgRuleById,ecgRuleRegistry} from "../data/rule-engine/rule-registry.js";
 
 const tachyBase={heartRate:150,qrsMs:90,regularity:"regular",pWave:"unknown",avRelationship:"unknown",deltaWave:false,shortPr:false,fibrillatoryWaves:false,flutterWaves:false,flutterConduction:"unknown",pulsePresent:true,systolicBp:120,hypotension:false,alteredMentalStatus:false,shockSigns:false,ischemicChestPain:false,acuteHeartFailure:false,pulmonaryEdema:false,severeRespiratoryFailure:false,syncope:false,markedPresyncope:false,organHypoperfusion:false,wpwHistory:false,qrsMorphologyVariable:false,priorMi:false,structuralHeartDisease:false,sinusFeatures:false,qtcMs:null,potassium:null,calcium:null,magnesium:null};
 function integrated(patch={}){const x=createDefaultIntegratedInput();for(const [group,values] of Object.entries(patch))Object.assign(x[group],values);return buildIntegratedInterpretation(x)}
@@ -47,6 +48,16 @@ test("all 20 synthetic cases have unique IDs and explicit unknown fields",()=>{
 
 test("legacy and registry paths preserve the same clinical object for every case",()=>{
   for(const x of v2RegressionCases){const old=legacy(x);const throughRegistry=registry(x);assert.deepEqual(throughRegistry.clinicalOutput,old,x.id)}
+});
+
+test("fixture identifiers cannot masquerade as Rule IDs or matched rules",()=>{
+  const sinusTachy=v2RegressionCases.find(x=>x.id==="V2-CASE-03");
+  assert.equal(sinusTachy.expected.fixtureIdentifier,"CASE-TACHY-SINUS-006");
+  assert.deepEqual(sinusTachy.expected.ruleIds,[]);
+  assert.deepEqual(registry(sinusTachy).matchedRules,[]);
+  assert.doesNotMatch(sinusTachy.expected.fixtureIdentifier,/^ECG-/);
+  for(const item of v2RegressionCases)for(const id of item.expected.ruleIds??[])assert.ok(ecgRuleById.has(id),`${item.id}: unknown Rule ID ${id}`);
+  assert.equal(ecgRuleRegistry.length,59);
 });
 
 test("full-coverage cases retain expected classifications candidates and urgency",()=>{
