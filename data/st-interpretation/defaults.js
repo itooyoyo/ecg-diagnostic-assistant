@@ -13,5 +13,5 @@ export function createDefaultStInput(){
 
 export function createClinicalReviewStInput(){
   const input=createDefaultStInput();
-  return {...input,clinicalReviewStatus:"unentered",leadMeasurements:standardLeads.map(createEmptyStMeasurement),reciprocalFinding:{status:"indeterminate",leads:[],amplitudeMm:null,dynamicChange:null},dynamicChange:null};
+  return {...input,clinicalReviewStatus:"unentered",elevationShape:"unentered",leadMeasurements:standardLeads.map(createEmptyStMeasurement),reciprocalFinding:{status:"indeterminate",leads:[],amplitudeMm:null,dynamicChange:null},dynamicChange:null};
 }

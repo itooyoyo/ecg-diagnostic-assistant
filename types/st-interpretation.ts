@@ -4,6 +4,7 @@ export type EcgLead = "I"|"II"|"III"|"aVR"|"aVL"|"aVF"|"V1"|"V2"|"V3"|"V4"|"V5"|
 export type StandardEcgLead = Extract<EcgLead,"I"|"II"|"III"|"aVR"|"aVL"|"aVF"|"V1"|"V2"|"V3"|"V4"|"V5"|"V6">;
 export type StDirection = "elevation"|"depression"|"isoelectric"|"indeterminate";
 export type StMorphology = "horizontal"|"upsloping"|"downsloping"|"convex"|"concave"|"coved"|"saddleback"|"scooped"|"indeterminate";
+export type StElevationShape = "unentered"|"concave"|"straight"|"convex"|"indeterminate";
 export type StMeasurementPoint = "j_point"|"j_plus_20"|"j_plus_40"|"j_plus_60"|"j_plus_80"|"unknown";
 export type StBaselineReference = "tp_segment"|"pr_segment"|"other"|"uncertain";
 
@@ -56,6 +57,8 @@ export type StPreconditions = {
 
 export type StInterpretationInput = {
   clinicalReviewStatus?: "unentered"|"elevation"|"depression"|"mixed"|"none"|"indeterminate";
+  /** Education/audit input only. It must not alter Rule Engine results. */
+  elevationShape?: StElevationShape;
   leadMeasurements: StMeasurement[];
   reciprocalFinding: ReciprocalFinding;
   dynamicChange: boolean|null;
