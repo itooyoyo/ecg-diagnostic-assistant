@@ -5,6 +5,7 @@ export function buildNoPriorityDisplay({candidateCount,criticalCount,enteredFind
   const fullyReviewed=criticalCount===0&&uniqueUnassessed.length===0&&uniqueEntered.length>0;
   return {
     title:"現時点で優先度の高い診断候補はありません。",
+    statusLabel:"入力範囲では明らかな緊急所見なし",
     summary:fullyReviewed?"入力された範囲では明らかな異常所見は認められません。":"入力された範囲では、緊急性の高い所見や明確な診断候補は抽出されていません。",
     enteredFindings:uniqueEntered,
     unassessedItems:uniqueUnassessed,

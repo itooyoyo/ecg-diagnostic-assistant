@@ -13,6 +13,21 @@ test("simplified AF evidence reaches the existing AF rules without a hyper-K ove
   assert.ok(!result.diagnosticCandidates.some(x=>x.id==="severe-hyperkalemia"));
 });
 
+test("pre-excitation is presented above nonspecific IVCD while both candidates remain",()=>{
+  const result=evaluate(input=>{input.ecg.shortPr=true;input.ecg.deltaWave=true;input.ecg.wideQrs=true});
+  const ids=result.diagnosticCandidates.map(candidate=>candidate.id);
+  assert.equal(ids[0],"preexcitation-pattern");
+  assert.ok(ids.includes("ivcd-pattern"));
+});
+
+test("AF remains above low-confidence hyper-K when absent P contributes to both paths",()=>{
+  const result=evaluate(input=>{input.confirmedModules.push("simplified-af");input.ecg.pWaveAbsent=true});
+  const ids=result.diagnosticCandidates.map(candidate=>candidate.id);
+  assert.equal(ids[0],"atrial-fibrillation-pattern");
+  assert.ok(ids.includes("hyperkalemia-pattern"));
+  assert.ok(ids.indexOf("atrial-fibrillation-pattern")<ids.indexOf("hyperkalemia-pattern"));
+});
+
 test("LBBB remains visible and keeps Sgarbossa review when ST is indeterminate",()=>{
   const result=evaluate(input=>{input.ecg.lbbb=true;input.ecg.wideQrs=true;input.clinical.ischemicChestPain=true;input.indeterminateFindingIds.push("st-change")});
   const candidate=result.diagnosticCandidates.find(x=>x.id==="lbbb-pattern");

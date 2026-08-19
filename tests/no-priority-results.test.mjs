@@ -12,6 +12,7 @@ test("partially reviewed ECG summarizes entered findings and keeps ST QT unasses
     unassessedItems:["ST変化","QT/QTc"],
   });
   assert.equal(display.title,"現時点で優先度の高い診断候補はありません。");
+  assert.equal(display.statusLabel,"入力範囲では明らかな緊急所見なし");
   assert.match(display.summary,/入力された範囲/);
   assert.doesNotMatch(display.summary,/正常心電図|異常所見は認められません/);
   assert.deepEqual(display.unassessedItems,["ST変化","QT/QTc"]);
@@ -25,6 +26,7 @@ test("fully and explicitly reviewed findings use restrained no-abnormality wordi
     unassessedItems:[],
   });
   assert.equal(display.summary,"入力された範囲では明らかな異常所見は認められません。");
+  assert.equal(display.statusLabel,"入力範囲では明らかな緊急所見なし");
   assert.doesNotMatch(display.summary,/正常心電図/);
 });
 
@@ -43,6 +45,7 @@ test("many unknowns remain unassessed and are not converted to normal",()=>{
   assert.equal(display.unassessedItems.length,8);
   assert.equal(display.additionalInformation.length,6);
   assert.doesNotMatch(display.summary,/異常所見は認められません/);
+  assert.equal(display.statusLabel,"入力範囲では明らかな緊急所見なし");
 });
 
 test("result UI replaces the old empty-candidate sentence with structured sections",async()=>{
@@ -51,6 +54,7 @@ test("result UI replaces the old empty-candidate sentence with structured sectio
   assert.match(source,/今回十分に評価できていない項目/);
   assert.match(source,/追加すると評価しやすくなる情報/);
   assert.match(source,/reviewedFields/);
+  assert.match(source,/noPriority\?\.statusLabel\?\?result\.urgency/);
 });
 
 test("all 59 approved medical rules remain registered",()=>assert.equal(ecgRuleRegistry.length,59));
