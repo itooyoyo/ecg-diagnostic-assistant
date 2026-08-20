@@ -368,3 +368,26 @@ summary { cursor:pointer;font-weight:700;color:#dbeeff; }
 
 /* Measurement-oriented ECG finding reference */
 .finding-education>summary{cursor:pointer;font-weight:700}.systematic-eleven-body{padding-top:.75rem}.systematic-eleven-nav{display:grid;grid-template-columns:repeat(11,minmax(64px,1fr));gap:.35rem;overflow-x:auto;padding:.15rem 0 .5rem}.systematic-eleven-nav button{display:grid;place-items:center;gap:.2rem;min-width:64px;min-height:52px;padding:.4rem;border:1px solid rgba(87,230,255,.25);border-radius:9px;background:rgba(4,16,34,.66);color:#dcecff;cursor:pointer}.systematic-eleven-nav button:hover,.systematic-eleven-nav button:focus-visible{border-color:var(--cyan);outline:none}.systematic-eleven-nav button span,.finding-guide-item>summary span{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:rgba(87,230,255,.14);color:var(--cyan);font-weight:800}.finding-guide-list{display:grid;gap:.55rem;margin-top:.75rem}.finding-guide-item{scroll-margin-top:12px;border:1px solid rgba(87,230,255,.22);border-radius:10px;background:rgba(4,16,34,.52);overflow:hidden}.finding-guide-item>summary{display:flex;align-items:center;gap:.55rem;min-height:48px;padding:.8rem;cursor:pointer;font-weight:700}.finding-guide-body{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,1.2fr);gap:.7rem;padding:.75rem;border-top:1px solid var(--line)}.finding-guide-body>svg{grid-row:span 6;display:block;width:100%;height:auto;max-height:190px;color:#dcecff}.guide-wave{fill:none;stroke:currentColor;stroke-width:3}.guide-baseline{stroke:#57e6ff;stroke-width:1;stroke-dasharray:4 4}.guide-measure{stroke:#f1bf5b;stroke-width:2}.guide-alert{stroke:#ff6075;stroke-width:4}.finding-guide-body section{min-width:0;padding:.6rem;border:1px solid rgba(55,81,112,.55);border-radius:8px}.finding-guide-body h5{display:flex;align-items:center;gap:.45rem;margin:0 0 .35rem;font-size:.82rem}.finding-guide-body h5 span{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(87,230,255,.13);color:var(--cyan)}.finding-guide-body section>div{color:#c6d5e4;font-size:.82rem;line-height:1.55;overflow-wrap:anywhere}.finding-guide-body p{margin:.2rem 0}.finding-guide-body .btn{min-height:40px}@media(max-width:720px){.systematic-eleven-nav{grid-template-columns:repeat(11,70px)}.finding-guide-body{grid-template-columns:1fr}.finding-guide-body>svg{grid-row:auto;max-height:170px}.finding-guide-item>summary{min-height:48px}.finding-guide-body section>div{font-size:.88rem}}
+
+/* Mobile intrinsic-size containment: fix the overflowing child instead of hiding page overflow. */
+.compact-clinical-review,.compact-review-section,.compact-review-section>*,.finding-education,.finding-guide-list,.finding-guide-item,.finding-guide-body,.advanced-analysis,.advanced-analysis__body,.advanced-analysis__body>.card,.clinical-results{min-width:0;max-width:100%}
+.finding-guide-body>svg,.st-shape-wave,.wct-education-grid svg{min-width:0;max-width:100%;height:auto;overflow:hidden}
+.compact-lead-picker,.st-shape-fieldset{width:100%;min-width:0;max-width:100%}
+.compact-lead-picker>*{min-width:0;max-width:100%}
+.compact-review-section summary,.advanced-analysis summary,.clinical-results,.clinical-results code{overflow-wrap:anywhere;word-break:break-word}
+.upload-dropzone input{width:100%;min-width:0;max-width:100%}
+.brady-grid>*{min-width:0}.brady-grid input,.brady-grid select{width:100%;min-width:0;max-width:100%}
+.clinical-results .cardhead{flex-wrap:wrap}.urgency-chip{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.interpretation-item,.interpretation-detail,.interpretation-detail>*{min-width:0;max-width:100%}
+.interpretation-detail,.interpretation-detail p,.interpretation-detail strong,.result{overflow-wrap:anywhere;word-break:break-word}
+@media(max-width:720px){
+  .compact-lead-picker{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .systematic-eleven-nav{grid-template-columns:repeat(3,minmax(0,1fr));overflow-x:visible}
+  .systematic-eleven-nav button{width:auto;min-width:0}
+  .tachy-flow{flex-wrap:wrap;overflow-x:visible}
+  .interpretation-state,.interpretation-urgency{white-space:normal;overflow-wrap:anywhere}
+  .st-differential-education .table-scroll{max-width:100%;overflow-x:visible}
+  .st-differential-education table{width:100%;min-width:0;table-layout:fixed;font-size:.78rem}
+  .st-differential-education th,.st-differential-education td{padding:6px;overflow-wrap:anywhere;word-break:break-word}
+}
+@media(max-width:340px){.compact-lead-picker{grid-template-columns:1fr}}
