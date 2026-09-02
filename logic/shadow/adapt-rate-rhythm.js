@@ -1,0 +1,6 @@
+import {absentObservation,notAssessed,presentObservation,unknownObservation} from "../../types/clinical-observation-runtime.js";
+import {adaptClinicalReviewToCanonical} from "../integration/adapt-clinical-review.js";
+
+const rhythmKeys=["regularity","pWavesPresent","pBeforeEveryQrs","qrsAfterEveryP","variableRr","flutterActivity","multiplePMorphologies","avDissociation","captureBeat","fusionBeat","preExcitation","afSuspicion","pQrsRelationship"];
+function observation(input){if(!input?.assessed)return notAssessed();if(input.unknown||input.value==null)return unknownObservation("評価したが判定困難です");return typeof input.value==="boolean"?(input.value?presentObservation(true):absentObservation()):presentObservation(input.value)}
+export function adaptRateRhythmToCanonical(source={}){const base=adaptClinicalReviewToCanonical(source);const rhythm=Object.fromEntries(rhythmKeys.map(key=>[key,observation(source.rhythm?.[key])]));return {rateClass:base.derived.rateClass,qrsWidth:base.measurements.qrsMs.status==="present"?base.derived.qrsClass:base.categorical.qrsWidth,rhythm,clinical:{hypotensionOrShock:base.clinical.hypotensionOrShock,syncope:base.clinical.syncope,cardiacArrest:observation(source.clinical?.cardiacArrest),electrolyteAbnormality:base.clinical.electrolyteAbnormality},vf:observation(source.vf)}}

@@ -1,0 +1,1 @@
+import type {EcgDerivedState,EcgMeasurements,StLeadObservations} from "../../types/clinical-observation";export function buildEcgDerivedState(measurements:EcgMeasurements,stLeads:StLeadObservations):EcgDerivedState;
