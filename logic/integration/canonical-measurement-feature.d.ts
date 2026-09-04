@@ -1,0 +1,2 @@
+export const ECG_CANONICAL_MEASUREMENTS_FLAG:"ECG_CANONICAL_MEASUREMENTS_ENABLED";
+export function canonicalMeasurementsEnabled(value:string|undefined):boolean;

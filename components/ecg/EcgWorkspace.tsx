@@ -47,6 +47,7 @@ import { createDefaultIntegratedInput } from "@/data/integration/defaults.js";
 import { buildNoPriorityDisplay } from "@/logic/integration/build-no-priority-display.js";
 import { buildIntegratedInterpretation } from "@/logic/integration/build-integrated-interpretation.js";
 import { adaptTachyResultToIntegratedEcg } from "@/logic/integration/adapt-tachy-result.js";
+import { buildProductionCanonicalMeasurementShadow } from "@/logic/integration/build-production-canonical-measurements.js";
 import type { TachyResult } from "@/logic/tachyarrhythmia/classify.js";
 import type { SgarbossaInput } from "@/types/sgarbossa-interpretation";
 import { createDefaultSgarbossaInput } from "@/data/sgarbossa/defaults.js";
@@ -77,7 +78,7 @@ const initialAnalysis:AnalysisProcessState={status:"idle",progressMessage:"画�
 // Version 2 is clinician-input only. The local extraction path remains isolated for Version 3.
 const enableFutureLocalExtraction=false;
 
-export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
+export function EcgWorkspace({onAuthRequired,canonicalMeasurementsEnabled=false}:{onAuthRequired?:()=>void;canonicalMeasurementsEnabled?:boolean}={}) {
   const [quality,setQuality]=useState<Record<string,boolean>>(()=>Object.fromEntries(qualityItems.map(([k])=>[k,false])));
   const [qualityAssessmentEnabled,setQualityAssessmentEnabled]=useState(false);
   const qualityResult=useMemo(()=>evaluateQuality(quality),[quality]);
@@ -159,6 +160,25 @@ export function EcgWorkspace({onAuthRequired}:{onAuthRequired?:()=>void}={}) {
     x.indeterminateFindingIds=[...systematicItems.filter(i=>i.status==="indeterminate").map(i=>i.id),...(["unentered","indeterminate"].includes(integratedStInput.clinicalReviewStatus??"")?["st-change"]:[])];x.rejectedFindingIds=systematicItems.filter(i=>i.status==="rejected").map(i=>i.id);x.override=integratedOverride;return x;
   },[qualityAssessmentEnabled,quality,qualityResult.grade,hasPlacementWarning,integratedStInput,stResult,integratedTWaveInput,tWaveResult,qtInput,qtResult,pvcInput,pvcResult,conductionInput,conductionResult,integratedBradyInput,bradyResult,integratedElectrolyteInput,tachyResult,systematicItems,integratedOverride,sgarbossaResult,integratedSgarbossaInput.context,confirmedHeartRate,findingGuidance]);
   const integratedResult=useMemo(()=>buildIntegratedInterpretation(integratedInput),[integratedInput]);
+  const canonicalMeasurementShadow=useMemo(()=>{
+    const prCategory=bradyInput.prPattern==="normal"?"normal":bradyInput.prPattern==="short"?"short":bradyInput.prPattern==="prolonged_constant"?"prolonged":bradyInput.prPattern==="indeterminate"||bradyInput.prPattern==="not_measurable"?"indeterminate":null;
+    const qrsCategory=conductionInput.clinicianClassification==="rbbb_candidate"?"rbbb":conductionInput.clinicianClassification==="lbbb_candidate"?"lbbb":conductionInput.clinicianClassification==="indeterminate"?"indeterminate":reviewedFields.qrs&&conductionInput.qrsDurationMs!=null?(conductionInput.qrsDurationMs>=120?"wide":"narrow"):null;
+    const rateClass=confirmedHeartRate==null?null:confirmedHeartRate<60?"bradycardia":confirmedHeartRate>=100?"tachycardia":"normal";
+    const prClass=prCategory==="indeterminate"?null:prCategory;
+    const qrsClass=conductionResult.wideQrs==null?null:conductionResult.wideQrs?"wide":"narrow";
+    const qtcClass=qtResult.classification==="short"?"short":qtResult.classification==="normal"?"normal":["borderline_prolonged","prolonged","marked_prolongation"].includes(qtResult.classification)?"prolonged":null;
+    const qrsIsPseudo=reviewedFields.qrs&&!reviewedFields.qrsMeasurement&&[100,140].includes(conductionInput.qrsDurationMs??-1);
+    return buildProductionCanonicalMeasurementShadow({
+      enabled:canonicalMeasurementsEnabled,
+      heartRate:{value:confirmedHeartRate,assessment:reviewedFields.heartRate&&confirmedHeartRate!=null?"present":"not_assessed"},
+      pr:{value:null,assessment:"not_assessed",category:reviewedFields.pr?(prCategory??"indeterminate"):null,categoryAssessment:reviewedFields.pr?(prCategory==null||prCategory==="indeterminate"?"unknown":"present"):"not_assessed"},
+      qrs:{value:reviewedFields.qrsMeasurement?conductionInput.qrsDurationMs:null,measurementAssessment:reviewedFields.qrsMeasurement?(conductionInput.qrsDurationMs==null?"unknown":"present"):"not_assessed",category:reviewedFields.qrs?(qrsCategory??"indeterminate"):null,categoryAssessment:reviewedFields.qrs?(qrsCategory==null||qrsCategory==="indeterminate"?"unknown":"present"):"not_assessed"},
+      qtc:{value:reviewedFields.qtcMeasurement?qtInput.clinicianQtcMs:null,assessment:reviewedFields.qtcMeasurement?(qtInput.clinicianQtcMs==null?"unknown":"present"):reviewedFields.qt&&qtInput.measurementStatus!=="measurable"?"unknown":"not_assessed"},
+      legacy:{heartRateBpm:confirmedHeartRate??bradyInput.ventricularRateBpm,prMs:bradyInput.prIntervalsMs[0]??null,qrsMs:conductionInput.qrsDurationMs,qtcMs:qtResult.qtcMs,rateClass,prClass,qrsClass,qtcClass},
+      legacySources:{heartRateBpm:reviewedFields.heartRate?"physician_measurement":"legacy_default",prMs:"legacy_default",qrsMs:reviewedFields.qrsMeasurement?"physician_measurement":qrsIsPseudo?"legacy_pseudo_value":"legacy_default",qtcMs:reviewedFields.qtcMeasurement?"physician_measurement":"legacy_default",rateClass:reviewedFields.heartRate?"derived":"legacy_default",prClass:reviewedFields.pr?"physician_category":"legacy_default",qrsClass:reviewedFields.qrs?"physician_category":"legacy_default",qtcClass:reviewedFields.qtcMeasurement?"derived":"legacy_default"},
+    });
+  },[canonicalMeasurementsEnabled,reviewedFields,confirmedHeartRate,bradyInput.prPattern,bradyInput.prIntervalsMs,bradyInput.ventricularRateBpm,conductionInput.clinicianClassification,conductionInput.qrsDurationMs,conductionResult.wideQrs,qtInput.clinicianQtcMs,qtInput.measurementStatus,qtResult.classification,qtResult.qtcMs]);
+  void canonicalMeasurementShadow;
   const clinicalReviewDisplay=useMemo(()=>{
     const entered:string[]=[],unassessed:string[]=[];
     const add=(field:ClinicalReviewField,label:string,value:string|null)=>reviewedFields[field]?(value?entered.push(`${label}：${value}`):unassessed.push(label)):unassessed.push(label);
