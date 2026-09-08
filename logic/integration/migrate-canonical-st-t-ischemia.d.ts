@@ -1,0 +1,2 @@
+import type {StTShadowInput,StTShadowResult} from "../shadow/st-t-production-runtime";import type {IntegratedInterpretation} from "../../types/integrated-interpretation";
+export function migrateCanonicalStTIschemia(input:{enabled:boolean;legacyResult:IntegratedInterpretation;shadowInput:StTShadowInput}):{result:IntegratedInterpretation;evaluation:StTShadowResult|null;migratedCandidateIds:string[]};

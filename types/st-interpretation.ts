@@ -42,6 +42,9 @@ export type StClinicalContext = {
   highRWaveV1toV3: boolean;
   earlyRepolarizationSuspected: boolean;
   heartRate: number|null;
+  pleuriticPain: boolean;
+  positionalPain: boolean;
+  inflammatorySymptoms: boolean;
 };
 
 export type StPreconditions = {
@@ -59,6 +62,8 @@ export type StInterpretationInput = {
   clinicalReviewStatus?: "unentered"|"elevation"|"depression"|"mixed"|"none"|"indeterminate";
   /** Education/audit input only. It must not alter Rule Engine results. */
   elevationShape?: StElevationShape;
+  /** Canonical adapter projection; derived from existing confirmed morphology only. */
+  elevationMorphology?: "concave"|"convex"|"coved"|"saddleback"|"indeterminate";
   leadMeasurements: StMeasurement[];
   reciprocalFinding: ReciprocalFinding;
   dynamicChange: boolean|null;

@@ -7,7 +7,7 @@ export function createDefaultStInput(){
     reciprocalFinding:{status:"absent",leads:[],amplitudeMm:null,dynamicChange:false},
     dynamicChange:false,priorEcgAvailable:false,priorComparison:"indeterminate",qrsContext:"narrow",
     preconditions:{imageQualityAdequate:true,paperSpeedKnown:true,gainKnown:true,baselineStable:true,noiseAcceptable:true,leadLabelsKnown:true,placementConcern:false,v1v2HighPlacementConcern:false},
-    clinical:{age:null,sex:null,ischemicSymptoms:null,symptomOnset:"",hemodynamicInstability:false,hypotension:false,jugularVenousDistension:false,pulmonaryCongestionAbsent:false,troponinDynamicChange:null,posteriorOcclusionSuspected:false,highRWaveV1toV3:false,earlyRepolarizationSuspected:false,heartRate:null},
+    clinical:{age:null,sex:null,ischemicSymptoms:null,symptomOnset:"",hemodynamicInstability:false,hypotension:false,jugularVenousDistension:false,pulmonaryCongestionAbsent:false,troponinDynamicChange:null,posteriorOcclusionSuspected:false,highRWaveV1toV3:false,earlyRepolarizationSuspected:false,heartRate:null,pleuriticPain:false,positionalPain:false,inflammatorySymptoms:false},
   };
 }
 
