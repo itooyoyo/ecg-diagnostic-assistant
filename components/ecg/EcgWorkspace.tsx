@@ -48,6 +48,7 @@ import { buildNoPriorityDisplay } from "@/logic/integration/build-no-priority-di
 import { buildIntegratedInterpretation } from "@/logic/integration/build-integrated-interpretation.js";
 import { adaptTachyResultToIntegratedEcg } from "@/logic/integration/adapt-tachy-result.js";
 import { buildProductionCanonicalMeasurementShadow } from "@/logic/integration/build-production-canonical-measurements.js";
+import { buildProductionCanonicalRateRhythm } from "@/logic/integration/build-production-canonical-rate-rhythm.js";
 import type { TachyResult } from "@/logic/tachyarrhythmia/classify.js";
 import type { SgarbossaInput } from "@/types/sgarbossa-interpretation";
 import { createDefaultSgarbossaInput } from "@/data/sgarbossa/defaults.js";
@@ -78,7 +79,7 @@ const initialAnalysis:AnalysisProcessState={status:"idle",progressMessage:"画�
 // Version 2 is clinician-input only. The local extraction path remains isolated for Version 3.
 const enableFutureLocalExtraction=false;
 
-export function EcgWorkspace({onAuthRequired,canonicalMeasurementsEnabled=false}:{onAuthRequired?:()=>void;canonicalMeasurementsEnabled?:boolean}={}) {
+export function EcgWorkspace({onAuthRequired,canonicalMeasurementsEnabled=false,canonicalRateRhythmEnabled=false}:{onAuthRequired?:()=>void;canonicalMeasurementsEnabled?:boolean;canonicalRateRhythmEnabled?:boolean}={}) {
   const [quality,setQuality]=useState<Record<string,boolean>>(()=>Object.fromEntries(qualityItems.map(([k])=>[k,false])));
   const [qualityAssessmentEnabled,setQualityAssessmentEnabled]=useState(false);
   const qualityResult=useMemo(()=>evaluateQuality(quality),[quality]);
@@ -179,6 +180,18 @@ export function EcgWorkspace({onAuthRequired,canonicalMeasurementsEnabled=false}
     });
   },[canonicalMeasurementsEnabled,reviewedFields,confirmedHeartRate,bradyInput.prPattern,bradyInput.prIntervalsMs,bradyInput.ventricularRateBpm,conductionInput.clinicianClassification,conductionInput.qrsDurationMs,conductionResult.wideQrs,qtInput.clinicianQtcMs,qtInput.measurementStatus,qtResult.classification,qtResult.qtcMs]);
   void canonicalMeasurementShadow;
+  const canonicalRateRhythmState=useMemo(()=>{
+    const rhythmAssessment=reviewedFields.rhythm?(bradyInput.rateRegularity==="indeterminate"?"unknown":"present"):"not_assessed";
+    const pAssessment=reviewedFields.pWave?(bradyInput.pWavePresence==="indeterminate"?"unknown":"present"):"not_assessed";
+    const pPresent=bradyInput.pWavePresence==="absent"?false:["present","intermittent","hidden"].includes(bradyInput.pWavePresence)?true:null;
+    const relationAssessment=reviewedFields.pQrsRelationship?(bradyInput.pToQrsRelationship==="indeterminate"?"unknown":"present"):"not_assessed";
+    const pBefore=bradyInput.pToQrsRelationship==="one_to_one"||bradyInput.pToQrsRelationship==="two_to_one"||bradyInput.pToQrsRelationship==="three_to_one"?true:bradyInput.pToQrsRelationship==="av_dissociation"?false:null;
+    const afterEveryP=bradyInput.pToQrsRelationship==="one_to_one"?true:["two_to_one","three_to_one","av_dissociation"].includes(bradyInput.pToQrsRelationship)?false:null;
+    const variableRr=bradyInput.rateRegularity==="irregular"||bradyInput.rateRegularity==="regularly_irregular"?true:bradyInput.rateRegularity==="regular"?false:null;
+    const legacySinus=bradyInput.rateRegularity==="regular"&&bradyInput.pWavePresence==="present"&&bradyInput.pToQrsRelationship==="one_to_one"?"sinus_pattern_supported":"sinus_pattern_uncertain";
+    return buildProductionCanonicalRateRhythm({enabled:canonicalRateRhythmEnabled,measurements:canonicalMeasurementShadow,regularity:{value:bradyInput.rateRegularity==="indeterminate"?null:bradyInput.rateRegularity,assessment:rhythmAssessment},variableRr:{value:variableRr,assessment:rhythmAssessment},pWavesPresent:{value:pPresent,assessment:pAssessment},pBeforeEveryQrs:{value:pBefore,assessment:relationAssessment},qrsAfterEveryP:{value:afterEveryP,assessment:relationAssessment},legacy:{rateClass:confirmedHeartRate==null?"normal":confirmedHeartRate<60?"bradycardia":confirmedHeartRate>=100?"tachycardia":"normal",regularity:bradyInput.rateRegularity,pWavesPresent:bradyInput.pWavePresence==="absent"?false:true,variableRr:bradyInput.rateRegularity!=="regular",pBeforeEveryQrs:bradyInput.pToQrsRelationship==="one_to_one",qrsAfterEveryP:bradyInput.pToQrsRelationship==="one_to_one",sinusPattern:legacySinus},legacySources:{rateClass:reviewedFields.heartRate?"derived":"legacy_default",regularity:reviewedFields.rhythm?"physician_category":"legacy_default",variableRr:reviewedFields.rhythm?"derived":"legacy_default",pWavesPresent:reviewedFields.pWave?"physician_category":"legacy_default",pBeforeEveryQrs:reviewedFields.pQrsRelationship?"physician_category":"legacy_default",qrsAfterEveryP:reviewedFields.pQrsRelationship?"physician_category":"legacy_default"}});
+  },[canonicalRateRhythmEnabled,canonicalMeasurementShadow,reviewedFields,bradyInput.rateRegularity,bradyInput.pWavePresence,bradyInput.pToQrsRelationship,confirmedHeartRate]);
+  void canonicalRateRhythmState;
   const clinicalReviewDisplay=useMemo(()=>{
     const entered:string[]=[],unassessed:string[]=[];
     const add=(field:ClinicalReviewField,label:string,value:string|null)=>reviewedFields[field]?(value?entered.push(`${label}：${value}`):unassessed.push(label)):unassessed.push(label);
