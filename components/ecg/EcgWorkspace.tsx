@@ -49,12 +49,15 @@ import { buildIntegratedInterpretation } from "@/logic/integration/build-integra
 import { adaptTachyResultToIntegratedEcg } from "@/logic/integration/adapt-tachy-result.js";
 import { buildProductionCanonicalMeasurementShadow } from "@/logic/integration/build-production-canonical-measurements.js";
 import { buildProductionCanonicalRateRhythm } from "@/logic/integration/build-production-canonical-rate-rhythm.js";
+import { migrateCanonicalBasicRhythmCandidates } from "@/logic/integration/migrate-canonical-basic-rhythm-candidates.js";
+import { absentObservation, notAssessed, presentObservation } from "@/types/clinical-observation-runtime.js";
 import type { TachyResult } from "@/logic/tachyarrhythmia/classify.js";
 import type { SgarbossaInput } from "@/types/sgarbossa-interpretation";
 import { createDefaultSgarbossaInput } from "@/data/sgarbossa/defaults.js";
 import { interpretSgarbossa } from "@/logic/sgarbossa/interpret-sgarbossa.js";
 import { SgarbossaModule } from "@/components/interpretation/SgarbossaModule";
 import type { AnalysisProcessState, EcgAnalysisErrorDetail, EcgImageAnalysisResult } from "@/types/ecg";
+import type { ObservationState, QrsWidthCategory } from "@/types/clinical-observation";
 
 const qualityItems = [
   ["allLeads","12誘導がすべて写っている"],["leadLabels","誘導名が読める"],["waveformsComplete","波形が途中で切れていない"],
@@ -79,13 +82,14 @@ const initialAnalysis:AnalysisProcessState={status:"idle",progressMessage:"画�
 // Version 2 is clinician-input only. The local extraction path remains isolated for Version 3.
 const enableFutureLocalExtraction=false;
 
-export function EcgWorkspace({onAuthRequired,canonicalMeasurementsEnabled=false,canonicalRateRhythmEnabled=false}:{onAuthRequired?:()=>void;canonicalMeasurementsEnabled?:boolean;canonicalRateRhythmEnabled?:boolean}={}) {
+export function EcgWorkspace({onAuthRequired,canonicalMeasurementsEnabled=false,canonicalRateRhythmEnabled=false,canonicalBasicRhythmCandidatesEnabled=false}:{onAuthRequired?:()=>void;canonicalMeasurementsEnabled?:boolean;canonicalRateRhythmEnabled?:boolean;canonicalBasicRhythmCandidatesEnabled?:boolean}={}) {
   const [quality,setQuality]=useState<Record<string,boolean>>(()=>Object.fromEntries(qualityItems.map(([k])=>[k,false])));
   const [qualityAssessmentEnabled,setQualityAssessmentEnabled]=useState(false);
   const qualityResult=useMemo(()=>evaluateQuality(quality),[quality]);
   const [hasPlacementWarning,setHasPlacementWarning]=useState(false);
   const [hasTachyRedFlag,setHasTachyRedFlag]=useState(false);
   const [tachyResult,setTachyResult]=useState<TachyResult|null>(null);
+  const [tachyCanonicalObservations,setTachyCanonicalObservations]=useState<{pWave:"present"|"absent"|"unknown"|"retrograde"|"buried";pQrs:"one-to-one"|"more-p"|"more-qrs"|"av-dissociation"|"unknown";fibrillatoryWaves:boolean;flutterWaves:boolean;multiplePWaveMorphologies:boolean}>({pWave:"unknown",pQrs:"unknown",fibrillatoryWaves:false,flutterWaves:false,multiplePWaveMorphologies:false});
   const [processedFile,setProcessedFile]=useState<File|null>(null);
   const [originalFile,setOriginalFile]=useState<File|null>(null);
   const [uploadFile,setUploadFile]=useState<File|null>(null);
@@ -160,7 +164,7 @@ export function EcgWorkspace({onAuthRequired,canonicalMeasurementsEnabled=false,
     x.confirmedModules=["quality","clinician-review","ST","T-wave","QT","PVC","conduction","Sgarbossa","bradyarrhythmia","tachyarrhythmia","electrolyte",...(simplifiedAf?["simplified-af"]:[]),...(findingGuidance.rOnT==="present"?["simplified-r-on-t"]:[]),...(derivedReciprocal?["derived-reciprocal"]:[])];
     x.indeterminateFindingIds=[...systematicItems.filter(i=>i.status==="indeterminate").map(i=>i.id),...(["unentered","indeterminate"].includes(integratedStInput.clinicalReviewStatus??"")?["st-change"]:[])];x.rejectedFindingIds=systematicItems.filter(i=>i.status==="rejected").map(i=>i.id);x.override=integratedOverride;return x;
   },[qualityAssessmentEnabled,quality,qualityResult.grade,hasPlacementWarning,integratedStInput,stResult,integratedTWaveInput,tWaveResult,qtInput,qtResult,pvcInput,pvcResult,conductionInput,conductionResult,integratedBradyInput,bradyResult,integratedElectrolyteInput,tachyResult,systematicItems,integratedOverride,sgarbossaResult,integratedSgarbossaInput.context,confirmedHeartRate,findingGuidance]);
-  const integratedResult=useMemo(()=>buildIntegratedInterpretation(integratedInput),[integratedInput]);
+  const legacyIntegratedResult=useMemo(()=>buildIntegratedInterpretation(integratedInput),[integratedInput]);
   const canonicalMeasurementShadow=useMemo(()=>{
     const prCategory=bradyInput.prPattern==="normal"?"normal":bradyInput.prPattern==="short"?"short":bradyInput.prPattern==="prolonged_constant"?"prolonged":bradyInput.prPattern==="indeterminate"||bradyInput.prPattern==="not_measurable"?"indeterminate":null;
     const qrsCategory=conductionInput.clinicianClassification==="rbbb_candidate"?"rbbb":conductionInput.clinicianClassification==="lbbb_candidate"?"lbbb":conductionInput.clinicianClassification==="indeterminate"?"indeterminate":reviewedFields.qrs&&conductionInput.qrsDurationMs!=null?(conductionInput.qrsDurationMs>=120?"wide":"narrow"):null;
@@ -191,7 +195,17 @@ export function EcgWorkspace({onAuthRequired,canonicalMeasurementsEnabled=false,
     const legacySinus=bradyInput.rateRegularity==="regular"&&bradyInput.pWavePresence==="present"&&bradyInput.pToQrsRelationship==="one_to_one"?"sinus_pattern_supported":"sinus_pattern_uncertain";
     return buildProductionCanonicalRateRhythm({enabled:canonicalRateRhythmEnabled,measurements:canonicalMeasurementShadow,regularity:{value:bradyInput.rateRegularity==="indeterminate"?null:bradyInput.rateRegularity,assessment:rhythmAssessment},variableRr:{value:variableRr,assessment:rhythmAssessment},pWavesPresent:{value:pPresent,assessment:pAssessment},pBeforeEveryQrs:{value:pBefore,assessment:relationAssessment},qrsAfterEveryP:{value:afterEveryP,assessment:relationAssessment},legacy:{rateClass:confirmedHeartRate==null?"normal":confirmedHeartRate<60?"bradycardia":confirmedHeartRate>=100?"tachycardia":"normal",regularity:bradyInput.rateRegularity,pWavesPresent:bradyInput.pWavePresence==="absent"?false:true,variableRr:bradyInput.rateRegularity!=="regular",pBeforeEveryQrs:bradyInput.pToQrsRelationship==="one_to_one",qrsAfterEveryP:bradyInput.pToQrsRelationship==="one_to_one",sinusPattern:legacySinus},legacySources:{rateClass:reviewedFields.heartRate?"derived":"legacy_default",regularity:reviewedFields.rhythm?"physician_category":"legacy_default",variableRr:reviewedFields.rhythm?"derived":"legacy_default",pWavesPresent:reviewedFields.pWave?"physician_category":"legacy_default",pBeforeEveryQrs:reviewedFields.pQrsRelationship?"physician_category":"legacy_default",qrsAfterEveryP:reviewedFields.pQrsRelationship?"physician_category":"legacy_default"}});
   },[canonicalRateRhythmEnabled,canonicalMeasurementShadow,reviewedFields,bradyInput.rateRegularity,bradyInput.pWavePresence,bradyInput.pToQrsRelationship,confirmedHeartRate]);
-  void canonicalRateRhythmState;
+  const integratedResult=useMemo(()=>{
+    const canonical=canonicalRateRhythmState.canonical;
+    const observedBoolean=(active:boolean)=>(active?presentObservation(true):notAssessed()) as ObservationState<boolean>;
+    const unassessedBoolean=()=>notAssessed() as ObservationState<boolean>;
+    const tachyP=tachyCanonicalObservations.pWave;
+    const pWavesPresent=(tachyP==="unknown"?canonical.rhythm.pWavesPresent:mapBooleanObservation(tachyP==="present")) as ObservationState<boolean>;
+    const pQrsRelationship=(tachyCanonicalObservations.pQrs==="unknown"?notAssessed():tachyP==="retrograde"?presentObservation("junctional_compatible" as const):presentObservation(tachyCanonicalObservations.pQrs==="one-to-one"?"one_to_one" as const:"abnormal" as const)) as ObservationState<"one_to_one"|"junctional_compatible"|"abnormal">;
+    const qrsWidth=canonicalMeasurementShadow.effectiveClasses.qrsClass;
+    const canonicalQrsWidth=(qrsWidth.status==="present"?qrsWidth.value==="borderline"?{status:"unknown",reason:"QRS幅分類が境界域です"}:presentObservation(qrsWidth.value):qrsWidth) as ObservationState<QrsWidthCategory>;
+    return migrateCanonicalBasicRhythmCandidates({enabled:canonicalBasicRhythmCandidatesEnabled,legacyResult:legacyIntegratedResult,shadowInput:{rateClass:canonical.rateClass,qrsWidth:canonicalQrsWidth,rhythm:{regularity:canonical.rhythm.regularity,variableRr:canonical.rhythm.variableRr,pWavesPresent,pBeforeEveryQrs:canonical.rhythm.pBeforeEveryQrs,qrsAfterEveryP:canonical.rhythm.qrsAfterEveryP,flutterActivity:observedBoolean(bradyInput.atrialFlutter||tachyCanonicalObservations.flutterWaves),multiplePMorphologies:observedBoolean(tachyCanonicalObservations.multiplePWaveMorphologies),avDissociation:unassessedBoolean(),captureBeat:unassessedBoolean(),fusionBeat:unassessedBoolean(),preExcitation:unassessedBoolean(),afSuspicion:observedBoolean(bradyInput.atrialFibrillation||tachyCanonicalObservations.fibrillatoryWaves),pQrsRelationship},clinical:{hypotensionOrShock:unassessedBoolean(),syncope:unassessedBoolean(),cardiacArrest:unassessedBoolean(),electrolyteAbnormality:unassessedBoolean()},vf:unassessedBoolean()}}).result;
+  },[canonicalBasicRhythmCandidatesEnabled,legacyIntegratedResult,canonicalRateRhythmState,canonicalMeasurementShadow,tachyCanonicalObservations,bradyInput.atrialFlutter,bradyInput.atrialFibrillation]);
   const clinicalReviewDisplay=useMemo(()=>{
     const entered:string[]=[],unassessed:string[]=[];
     const add=(field:ClinicalReviewField,label:string,value:string|null)=>reviewedFields[field]?(value?entered.push(`${label}：${value}`):unassessed.push(label)):unassessed.push(label);
@@ -337,7 +351,7 @@ export function EcgWorkspace({onAuthRequired,canonicalMeasurementsEnabled=false,
       </section>
 
       <section className="card" id="section-2"><div className="cardhead"><div><div className="eyebrow">Upload state</div><h3>画像解析の状態</h3></div></div><p className="muted">画像選択・プレビュー・解析・医師修正は通常画面に集約しています。詳細解析では医学判定モジュールのみを確認できます。</p></section>
-      <TachyarrhythmiaModule heartRate={confirmedHeartRate} qrsMs={confirmedQrs??conductionResult.qrsDurationMs} regularity={confirmedRegularity!=="unknown"?confirmedRegularity:bradyInput.rateRegularity==="irregular"?"irregular":bradyInput.rateRegularity==="regular"?"regular":"unknown"} onRedFlagChange={setHasTachyRedFlag} onResultChange={setTachyResult}/>
+      <TachyarrhythmiaModule heartRate={confirmedHeartRate} qrsMs={confirmedQrs??conductionResult.qrsDurationMs} regularity={confirmedRegularity!=="unknown"?confirmedRegularity:bradyInput.rateRegularity==="irregular"?"irregular":bradyInput.rateRegularity==="regular"?"regular":"unknown"} onRedFlagChange={setHasTachyRedFlag} onResultChange={setTachyResult} onCanonicalObservationsChange={setTachyCanonicalObservations}/>
       <BradyarrhythmiaModule input={integratedBradyInput} result={bradyResult} onChange={setBradyInput}/>
       <ElectrolyteModule input={integratedElectrolyteInput} result={electrolyteResult} onChange={setElectrolyteInput}/>
       <section className="card systematic-shell" id="section-6">
@@ -397,6 +411,7 @@ function NavigatorCard({state,comment,className}:{state:NavigatorState;comment:s
 }
 
 function numberFromFinding(value:string|null){if(value==null)return null;const n=Number.parseFloat(value);return Number.isFinite(n)?n:null}
+function mapBooleanObservation(value:boolean):ObservationState<boolean>{return (value?presentObservation(true):absentObservation()) as ObservationState<boolean>}
 function formatFileSize(bytes:number){return bytes<1024?`${bytes} B`:bytes<1024*1024?`${(bytes/1024).toFixed(1)} KB`:`${(bytes/1024/1024).toFixed(1)} MB`}
 function displayFinding(value:unknown){if(value==null||value==="")return "判定不能";if(typeof value==="string"||typeof value==="number"||typeof value==="boolean")return String(value);try{return JSON.stringify(value)}catch{return "判定不能"}}
 function reviewFromAnalysis(result:EcgImageAnalysisResult):Record<string,ReviewEntry>{

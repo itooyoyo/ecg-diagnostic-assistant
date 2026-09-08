@@ -10,6 +10,7 @@ type TachyarrhythmiaModuleProps = {
   regularity:Regularity;
   onRedFlagChange?:(active:boolean)=>void;
   onResultChange?:(result:TachyResult)=>void;
+  onCanonicalObservationsChange?:(observations:{pWave:PWaveState;pQrs:AvRelationship;fibrillatoryWaves:boolean;flutterWaves:boolean;multiplePWaveMorphologies:boolean})=>void;
 };
 
 const unstableFields = [
@@ -25,7 +26,7 @@ const quadrantCopy = {
   "wide irregular":["pre-excited AF","多形性VT／TdP","AF＋脚ブロック","電解質／薬剤性"],
 };
 
-export function TachyarrhythmiaModule({heartRate,qrsMs,regularity,onRedFlagChange,onResultChange}:TachyarrhythmiaModuleProps) {
+export function TachyarrhythmiaModule({heartRate,qrsMs,regularity,onRedFlagChange,onResultChange,onCanonicalObservationsChange}:TachyarrhythmiaModuleProps) {
   const [pulsePresent,setPulsePresent]=useState<boolean|null>(true);
   const [systolicBp,setSystolicBp]=useState<number|null>(120);
   const [flags,setFlags]=useState(initialFlags);
@@ -59,6 +60,7 @@ export function TachyarrhythmiaModule({heartRate,qrsMs,regularity,onRedFlagChang
   const reportedResult=useRef("");
   useEffect(()=>onRedFlagChange?.(hasRedFlag),[hasRedFlag,onRedFlagChange]);
   useEffect(()=>{if(reportedResult.current!==resultSignature){reportedResult.current=resultSignature;onResultChange?.(result)}},[result,resultSignature,onResultChange]);
+  useEffect(()=>onCanonicalObservationsChange?.({pWave,pQrs,fibrillatoryWaves,flutterWaves,multiplePWaveMorphologies:advanced.multiplePWaveMorphologies}),[pWave,pQrs,fibrillatoryWaves,flutterWaves,advanced.multiplePWaveMorphologies,onCanonicalObservationsChange]);
   if(!result.active) return <section className="card tachy-shell" id="tachyarrhythmia"><div className="cardhead"><div><div className="eyebrow">Tachyarrhythmia module</div><h3>頻脈性不整脈</h3></div><span className="badge">待機中</span></div><p className="muted">医師確認後の心拍数が100 bpm以上になると起動します。単一の心拍数だけで診断名を決定しません。</p></section>;
 
   return <section className="card tachy-shell" id="tachyarrhythmia">
