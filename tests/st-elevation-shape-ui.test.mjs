@@ -60,7 +60,7 @@ test("inflammatory checks remain education only",()=>{
 });
 
 test("unvalidated mimic findings are explicitly disconnected from rules",()=>{
-  for(const text of ["PR depression","J-point notching／slurring","terminal QRS distortion","ST/T ratio","今回Rule未接続","測定値を今回Ruleへ使用しない"])assert.match(ui,new RegExp(text.replace("/","\\/")));
+  for(const text of ["PR depression","J-point notching／slurring","terminal QRS distortion","ST/T ratio","既存canonical評価へ反映","測定値を今回Ruleへ使用しない"])assert.match(ui,new RegExp(text.replace("/","\\/")));
 });
 
 test("shape cards remain responsive and keyboard-native",()=>{

@@ -1,6 +1,6 @@
 "use client";
 
-import type { StandardEcgLead, StDirection, StInterpretation, StInterpretationInput, StMorphology } from "@/types/st-interpretation";
+import type { StandardEcgLead, StClinicalObservationState, StDirection, StInterpretation, StInterpretationInput, StMorphology } from "@/types/st-interpretation";
 
 const directions: Array<[StDirection,string]> = [["isoelectric","変化なし"],["elevation","↑ 上昇"],["depression","↓ 低下"],["indeterminate","判定不能"]];
 const morphologies: Array<[StMorphology,string]> = [["horizontal","水平型"],["upsloping","上行型"],["downsloping","下降型"],["convex","上に凸"],["concave","上に凹"],["coved","coved"],["saddleback","saddleback"],["scooped","scooped"],["indeterminate","判定不能"]];
@@ -14,6 +14,11 @@ export function STChangeModule({input,result,onChange}:{input:StInterpretationIn
       <label>性別<select value={input.clinical.sex??""} onChange={e=>updateClinical({sex:e.target.value==="male"?"male":e.target.value==="female"?"female":null})}><option value="">未入力</option><option value="male">男性</option><option value="female">女性</option></select></label>
       <label>QRS背景<select value={input.qrsContext} onChange={e=>onChange({...input,qrsContext:e.target.value as StInterpretationInput["qrsContext"]})}>{[["narrow","狭いQRS"],["rbbb","RBBB"],["lbbb","LBBB"],["paced","ペーシング"],["lvh","左室肥大"],["preexcitation","早期興奮"],["unknown","不明"]].map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></label>
       <label>前回比較<select value={input.priorComparison} onChange={e=>onChange({...input,priorEcgAvailable:e.target.value!=="indeterminate",priorComparison:e.target.value as StInterpretationInput["priorComparison"]})}>{[["indeterminate","比較なし/不明"],["unchanged","不変"],["new","新規"],["worsened","増悪"],["improved","改善"],["transient","一過性"]].map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></label>
+      <ClinicalObservation label="胸膜痛様胸痛" value={input.clinical.pleuriticPainAssessment??"not_assessed"} onChange={value=>updateClinical({pleuriticPainAssessment:value,pleuriticPain:value==="present"})}/>
+      <ClinicalObservation label="体位性胸痛" value={input.clinical.positionalPainAssessment??"not_assessed"} onChange={value=>updateClinical({positionalPainAssessment:value,positionalPain:value==="present"})}/>
+      <ClinicalObservation label="PR低下" value={input.clinical.prDepressionAssessment??"not_assessed"} onChange={value=>updateClinical({prDepressionAssessment:value})}/>
+      <ClinicalObservation label="発熱" value={input.clinical.feverAssessment??"not_assessed"} onChange={value=>updateClinical({feverAssessment:value})}/>
+      <ClinicalObservation label="炎症性背景" value={input.clinical.inflammatorySymptomsAssessment??"not_assessed"} onChange={value=>updateClinical({inflammatorySymptomsAssessment:value,inflammatorySymptoms:value==="present"})}/>
     </div><div className="st-check-grid">
       <Check label="虚血を疑う症状" checked={input.clinical.ischemicSymptoms===true} onChange={v=>updateClinical({ischemicSymptoms:v})}/><Check label="循環動態不安定" checked={input.clinical.hemodynamicInstability} onChange={v=>updateClinical({hemodynamicInstability:v})}/><Check label="低血圧" checked={input.clinical.hypotension} onChange={v=>updateClinical({hypotension:v})}/><Check label="V1〜V3の高いR波" checked={input.clinical.highRWaveV1toV3} onChange={v=>updateClinical({highRWaveV1toV3:v})}/><Check label="動的ST変化" checked={input.dynamicChange===true} onChange={v=>onChange({...input,dynamicChange:v})}/><Check label="V1/V2高位装着疑い" checked={input.preconditions.v1v2HighPlacementConcern} onChange={v=>onChange({...input,preconditions:{...input.preconditions,v1v2HighPlacementConcern:v}})}/>
     </div></section>
@@ -27,4 +32,5 @@ export function STChangeModule({input,result,onChange}:{input:StInterpretationIn
 }
 
 function Check({label,checked,onChange}:{label:string;checked:boolean;onChange:(value:boolean)=>void}){return <label className="check"><input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked)}/>{label}</label>}
+function ClinicalObservation({label,value,onChange}:{label:string;value:StClinicalObservationState;onChange:(value:StClinicalObservationState)=>void}){return <label>{label}<select value={value} onChange={event=>onChange(event.target.value as StClinicalObservationState)}><option value="not_assessed">未評価</option><option value="present">あり</option><option value="absent">なし</option><option value="unknown">判定困難</option></select></label>}
 function classificationLabel(value:StInterpretation["overallClassification"]){return ({no_significant_change:"有意なST変化なし",st_elevation:"ST上昇",st_depression:"ST低下",mixed:"ST上昇・低下の併存",secondary_repolarization_change:"QRS異常に伴う二次性ST-T変化の可能性",indeterminate:"判定不能（正常として扱いません）"})[value]}

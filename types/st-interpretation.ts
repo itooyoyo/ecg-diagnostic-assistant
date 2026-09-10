@@ -5,6 +5,7 @@ export type StandardEcgLead = Extract<EcgLead,"I"|"II"|"III"|"aVR"|"aVL"|"aVF"|"
 export type StDirection = "elevation"|"depression"|"isoelectric"|"indeterminate";
 export type StMorphology = "horizontal"|"upsloping"|"downsloping"|"convex"|"concave"|"coved"|"saddleback"|"scooped"|"indeterminate";
 export type StElevationShape = "unentered"|"concave"|"straight"|"convex"|"indeterminate";
+export type StClinicalObservationState = "present"|"absent"|"unknown"|"not_assessed";
 export type StMeasurementPoint = "j_point"|"j_plus_20"|"j_plus_40"|"j_plus_60"|"j_plus_80"|"unknown";
 export type StBaselineReference = "tp_segment"|"pr_segment"|"other"|"uncertain";
 
@@ -45,6 +46,12 @@ export type StClinicalContext = {
   pleuriticPain: boolean;
   positionalPain: boolean;
   inflammatorySymptoms: boolean;
+  /** Production review states; legacy booleans above remain for compatibility. */
+  pleuriticPainAssessment?: StClinicalObservationState;
+  positionalPainAssessment?: StClinicalObservationState;
+  inflammatorySymptomsAssessment?: StClinicalObservationState;
+  prDepressionAssessment?: StClinicalObservationState;
+  feverAssessment?: StClinicalObservationState;
 };
 
 export type StPreconditions = {
