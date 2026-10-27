@@ -1,0 +1,34 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {adaptStTToCanonical} from "../logic/shadow/adapt-st-t.js";
+import {evaluateStTShadow} from "../logic/shadow/evaluate-st-t.js";
+import {migrateCanonicalStTIschemia} from "../logic/integration/migrate-canonical-st-t-ischemia.js";
+import {createDefaultIntegratedInput} from "../data/integration/defaults.js";
+import {buildIntegratedInterpretation} from "../logic/integration/build-integrated-interpretation.js";
+import {ecgRuleRegistry} from "../data/rule-engine/rule-registry.js";
+
+const a=value=>({assessed:true,value});
+const u=()=>({assessed:true,unknown:true});
+const canonical=context=>adaptStTToCanonical({context});
+const evaluation=context=>evaluateStTShadow(canonical(context));
+const erp=context=>evaluation(context).candidates.find(item=>item.candidateId==="early_repolarization");
+const base=patch=>{const input=createDefaultIntegratedInput();for(const [group,values] of Object.entries(patch??{}))Object.assign(input[group],values);return buildIntegratedInterpretation(input)};
+const migrate=(context,legacy=base())=>migrateCanonicalStTIschemia({enabled:true,legacyResult:legacy,shadowInput:canonical(context)}).result;
+const supported=(shape,amplitude,leads,qrs=100,extra={})=>({jWave:a(true),jWaveMorphology:a(shape),jPointAmplitude:a(amplitude),jWaveLeads:a(leads),qrsDurationMs:a(qrs),...extra});
+
+test("J1 notching Jp 0.15 mV inferior contiguous narrow QRS supports ERP",()=>{const item=erp(supported("notching","ge_0_1",["II","III"],100));assert.equal(item.status,"supported");assert.ok(item.supporting.some(x=>x.label.includes("下壁")));assert.ok(migrate(supported("notching","ge_0_1",["II","III"],100)).diagnosticCandidates.some(x=>x.id==="early-repolarization-pattern"))});
+test("J2 slurring Jp 0.12 mV lateral contiguous supports ERP",()=>{const item=erp(supported("slurring","ge_0_1",["I","aVL"],105));assert.equal(item.status,"supported");assert.ok(item.supporting.some(x=>x.label.includes("slurring")))});
+test("J3 Jp below 0.1 mV does not meet ERP criteria",()=>{const out=evaluation(supported("notching","lt_0_1",["II","III"],100));assert.equal(out.candidates.some(x=>x.candidateId==="early_repolarization"),false);assert.ok(out.limitations.some(x=>x.includes("0.1 mV未満")))});
+test("J4 V1 to V3 only does not meet ERP criteria",()=>{const out=evaluation(supported("notching","ge_0_1",["V1","V2","V3"],100));assert.equal(out.candidates.some(x=>x.candidateId==="early_repolarization"),false);assert.ok(out.limitations.some(x=>x.includes("V1～V3のみ")))});
+test("J5 present J wave with unknown lead distribution is held as insufficient",()=>{const item=erp({jWave:a(true),jWaveMorphology:a("notching"),jPointAmplitude:a("ge_0_1"),jWaveDistribution:u(),qrsDurationMs:a(100)});assert.equal(item.status,"insufficient_data");assert.ok(item.missing.some(x=>x.includes("連続2誘導")))});
+test("J6 asymptomatic ERP never auto-confirms ER syndrome",()=>{const result=migrate(supported("notching","ge_0_1",["II","III"],100,{syncope:a(false)}));assert.ok(result.diagnosticCandidates.some(x=>x.id==="early-repolarization-pattern"));assert.ok(!result.diagnosticCandidates.some(x=>/syndrome|症候群/i.test(x.id+x.label)))});
+test("J7 ERP with VF history displays danger background without auto-confirming ER syndrome",()=>{const item=erp(supported("slurring","ge_0_1",["V4","V5"],100,{vfOrPolymorphicVtHistory:a(true)}));assert.equal(item.status,"supported");assert.ok(item.supporting.some(x=>x.label.includes("VF／多形性VT既往")));assert.equal(item.dangerTier,0)});
+test("J8 hypothermia J wave is separated as Osborn differential",()=>{const out=evaluation(supported("notching","ge_0_1",["II","III"],100,{hypothermia:a(true)}));assert.equal(out.candidates.some(x=>x.candidateId==="early_repolarization"),false);assert.ok(out.limitations.some(x=>x.includes("Osborn波")))});
+test("J9 coved V1 to V3 retains Brugada route",()=>{const shadow=adaptStTToCanonical({stMeasurements:["V1","V2","V3"].map(lead=>({lead,direction:"elevation",clinicianConfirmed:true})),context:{stMorphology:a("coved"),syncope:a(true),jWave:a(true),jWaveLeads:a(["V1","V2","V3"]),qrsDurationMs:a(100)}}),result=migrateCanonicalStTIschemia({enabled:true,legacyResult:base(),shadowInput:shadow}).result;assert.ok(result.diagnosticCandidates.some(x=>x.id==="brugada-pattern"));assert.equal(result.urgency,"emergency")});
+test("J10 not-assessed J wave is never completed as absent",()=>{const input=canonical({jWave:{assessed:false},hypothermia:{assessed:false},vfOrPolymorphicVtHistory:{assessed:false}});assert.equal(input.jWave.status,"not_assessed");assert.equal(input.hypothermia.status,"not_assessed");assert.equal(input.vfOrPolymorphicVtHistory.status,"not_assessed")});
+test("J11 wide QRS prevents casual ERP application",()=>{const out=evaluation(supported("notching","ge_0_1",["II","III"],140));assert.equal(out.candidates.some(x=>x.candidateId==="early_repolarization"),false);assert.ok(out.limitations.some(x=>x.includes("120 ms以上")))});
+test("J12 existing VT WCT Emergency is never lowered",()=>{const legacy=base({ecg:{wideTachycardia:true}}),result=migrate(supported("notching","ge_0_1",["II","III"],100),legacy);assert.equal(result.urgency,legacy.urgency);assert.deepEqual(result.criticalFindings,legacy.criticalFindings);assert.ok(legacy.diagnosticCandidates.every(item=>result.diagnosticCandidates.some(x=>x.id===item.id)))});
+test("J-wave merge reuses the existing candidate ID without duplicate ID or label",()=>{const result=migrate(supported("notching","ge_0_1",["II","III"],100,{stMorphology:a("concave"),stablePattern:a(true),ischemicChestPain:a(false)}));for(const key of ["id","label"]){const values=result.diagnosticCandidates.map(item=>item[key]);assert.equal(values.length,new Set(values).size)}assert.equal(result.diagnosticCandidates.filter(x=>x.id==="early-repolarization-pattern").length,1)});
+test("J-wave UI is advanced, diagrammatic, four-state, and touch-sized by CSS",()=>{const ui=readFileSync("components/ecg/SimplifiedClinicalReview.tsx","utf8"),css=readFileSync("app/globals.css","utf8");for(const text of ["J波・早期再分極パターンを詳しく評価","Notching（ノッチ）","Slurring（スラー）","医学教育用のオリジナル模式図","早期再分極症候群（ERS）を確定しません","Jp ≥0.1 mV"])assert.match(ui,new RegExp(text.replace(/[()]/g,"\\$&")));for(const state of ["not_assessed","present","absent","unknown"])assert.match(ui,new RegExp(`value=\\"${state}\\"`));assert.match(css,/min-height:44px/);assert.match(css,/@media\(max-width:720px\).*j-wave-shape-grid/)});
+test("Phase J-1 leaves the approved Rule Registry at 59",()=>assert.equal(ecgRuleRegistry.length,59));
